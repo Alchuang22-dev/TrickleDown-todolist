@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
@@ -40,7 +41,14 @@ public class MainActivity extends AppCompatActivity {
     private void setupImportantTasksList() {
         // 创建一个假的任务列表
         List<Task> importantTasks = new ArrayList<>();
-        importantTasks.add(new Task("任务1", "这是任务1的描述", true, "2025-04-12"));
+        Calendar cal = Calendar.getInstance();
+
+        // Reset time to beginning of day
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        importantTasks.add(new Task(6, "上课", "19:00 - 21:00", cal.getTime(), 120, false, "这是一个任务的简介"));
 
         // 设置RecyclerView
         TaskAdapter taskAdapter = new TaskAdapter(importantTasks, this);
