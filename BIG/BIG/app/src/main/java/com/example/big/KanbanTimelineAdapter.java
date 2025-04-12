@@ -4,10 +4,10 @@ import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.text.SimpleDateFormat;
@@ -22,10 +22,15 @@ public class KanbanTimelineAdapter extends RecyclerView.Adapter<KanbanTimelineAd
     private List<Task> tasks;
     private Date currentDate;
     private OnTaskClickListener listener;
+    private Calendar today;
+    private int numDays = 5; // 要显示的天数
 
-    // Hours to display (from 7 AM to 23 PM)
+    // 小时范围（7 AM 到 23 PM）
     private static final int START_HOUR = 7;
     private static final int END_HOUR = 23;
+
+    // 每5分钟的高度（dp）
+    private static final float FIVE_MIN_HEIGHT_DP = 5.0f;
 
     public interface OnTaskClickListener {
         void onTaskClick(Task task);
@@ -35,6 +40,14 @@ public class KanbanTimelineAdapter extends RecyclerView.Adapter<KanbanTimelineAd
         this.context = context;
         this.tasks = tasks;
         this.currentDate = currentDate;
+
+        // 初始化今天的日期（仅保留年月日，清除时分秒）
+        this.today = Calendar.getInstance();
+        this.today.setTime(new Date());
+        this.today.set(Calendar.HOUR_OF_DAY, 0);
+        this.today.set(Calendar.MINUTE, 0);
+        this.today.set(Calendar.SECOND, 0);
+        this.today.set(Calendar.MILLISECOND, 0);
     }
 
     public void setOnTaskClickListener(OnTaskClickListener listener) {
@@ -44,8 +57,8 @@ public class KanbanTimelineAdapter extends RecyclerView.Adapter<KanbanTimelineAd
     @NonNull
     @Override
     public TimelineViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(context).inflate(R.layout.item_timeline_hour, parent, false);
-        return new TimelineViewHolder(view);
+        View view = LayoutInflater.from(context).inflate(R.layout.item_timeline_hour_multi, parent, false);
+        return new TimelineViewHolder(view, numDays);
     }
 
     @Override
@@ -53,63 +66,118 @@ public class KanbanTimelineAdapter extends RecyclerView.Adapter<KanbanTimelineAd
         int hour = position + START_HOUR;
         holder.hourText.setText(String.format(Locale.getDefault(), "%02d", hour));
 
-        // Clear existing task views
-        holder.taskContainer.removeAllViews();
+        // 清除现有任务视图
+        holder.clearTaskViews();
 
-        // Find tasks for this hour
-        Calendar cal = Calendar.getInstance();
-        cal.setTime(currentDate);
-        cal.set(Calendar.HOUR_OF_DAY, hour);
-        cal.set(Calendar.MINUTE, 0);
-        cal.set(Calendar.SECOND, 0);
-        cal.set(Calendar.MILLISECOND, 0);
+        // 获取当前日期范围的起始日期
+        Calendar startDateCal = Calendar.getInstance();
+        startDateCal.setTime(currentDate);
+        startDateCal.add(Calendar.DAY_OF_MONTH, -2); // 从当前日期前2天开始
 
-        Date hourStart = cal.getTime();
-        cal.add(Calendar.HOUR_OF_DAY, 1);
-        Date hourEnd = cal.getTime();
+        // 遍历日期列
+        for (int dayIndex = 0; dayIndex < numDays; dayIndex++) {
+            Calendar dateCal = (Calendar) startDateCal.clone();
+            dateCal.add(Calendar.DAY_OF_MONTH, dayIndex);
 
-        for (Task task : tasks) {
-            // Parse task start time
-            String[] timeParts = task.getTimeRange().split(" - ")[0].split(":");
-            Calendar taskCal = Calendar.getInstance();
-            taskCal.setTime(task.getDate());
-            taskCal.set(Calendar.HOUR_OF_DAY, Integer.parseInt(timeParts[0]));
-            taskCal.set(Calendar.MINUTE, Integer.parseInt(timeParts[1]));
+            // 设置为当天的特定小时
+            dateCal.set(Calendar.HOUR_OF_DAY, hour);
+            dateCal.set(Calendar.MINUTE, 0);
+            dateCal.set(Calendar.SECOND, 0);
+            dateCal.set(Calendar.MILLISECOND, 0);
 
-            // Check if task starts in this hour
-            if (isSameDay(taskCal.getTime(), currentDate) &&
-                    taskCal.get(Calendar.HOUR_OF_DAY) == hour) {
-
-                // Create task view
-                View taskView = LayoutInflater.from(context).inflate(R.layout.item_task, holder.taskContainer, false);
-                TextView taskTitle = taskView.findViewById(R.id.task_title);
-                TextView taskTime = taskView.findViewById(R.id.task_time);
-
-                taskTitle.setText(task.getTitle());
-                taskTime.setText(task.getTimeRange());
-
-                // Set height based on duration
-                ViewGroup.LayoutParams params = taskView.getLayoutParams();
-                params.height = (int) (task.getDurationMinutes() * context.getResources().getDimension(R.dimen.minute_height));
-                taskView.setLayoutParams(params);
-
-                // Set background based on importance
-                if (task.isImportant()) {
-                    taskView.setBackgroundResource(R.drawable.important_task_background);
-                } else {
-                    taskView.setBackgroundResource(R.drawable.normal_task_background);
+            // 查找此日期和小时的任务
+            for (Task task : tasks) {
+                // 解析任务开始和结束时间
+                if (!isSameDay(task.getDate(), dateCal.getTime())) {
+                    continue;
                 }
 
-                // Set click listener
-                taskView.setOnClickListener(v -> {
-                    if (listener != null) {
-                        listener.onTaskClick(task);
-                    }
-                });
+                // 解析任务时间范围
+                String[] timeParts = task.getTimeRange().split(" - ");
+                if (timeParts.length < 2) continue;
 
-                holder.taskContainer.addView(taskView);
+                String[] startTimeParts = timeParts[0].split(":");
+                if (startTimeParts.length < 2) continue;
+
+                int taskStartHour = Integer.parseInt(startTimeParts[0]);
+                int taskStartMinute = Integer.parseInt(startTimeParts[1]);
+
+                // 判断任务是否在此小时内发生
+                if (taskStartHour == hour ||
+                        (task.getDurationMinutes() > 0 &&
+                                taskStartHour < hour &&
+                                taskStartHour + ((taskStartMinute + task.getDurationMinutes()) / 60) > hour)) {
+
+                    // 创建任务视图
+                    addTaskViewToHolder(holder, task, hour, dayIndex);
+                }
             }
         }
+    }
+
+    private void addTaskViewToHolder(TimelineViewHolder holder, Task task, int hour, int dayIndex) {
+        View taskView = LayoutInflater.from(context).inflate(R.layout.item_task, null);
+        TextView taskTitle = taskView.findViewById(R.id.task_title);
+        TextView taskTime = taskView.findViewById(R.id.task_time);
+
+        taskTitle.setText(task.getTitle());
+        taskTime.setText(task.getTimeRange());
+
+        // 解析任务开始时间
+        String[] timeParts = task.getTimeRange().split(" - ")[0].split(":");
+        int taskStartHour = Integer.parseInt(timeParts[0]);
+        int taskStartMinute = Integer.parseInt(timeParts[1]);
+
+        // 计算top margin（如果任务在此小时开始）
+        int topMarginPx = 0;
+        if (taskStartHour == hour) {
+            // 根据5分钟精度计算top margin
+            int minuteBlocks = taskStartMinute / 5;
+            float fiveMinHeightPx = dpToPx(FIVE_MIN_HEIGHT_DP);
+            topMarginPx = Math.round(minuteBlocks * fiveMinHeightPx);
+        }
+
+        // 计算此小时内的任务高度
+        int taskDurationInThisHour;
+        if (taskStartHour == hour) {
+            // 任务在此小时开始
+            int minutesLeft = 60 - taskStartMinute;
+            taskDurationInThisHour = Math.min(minutesLeft, task.getDurationMinutes());
+        } else {
+            // 任务从前一个小时延续
+            int hoursElapsed = hour - taskStartHour;
+            int minutesElapsed = hoursElapsed * 60 - taskStartMinute;
+            int minutesLeft = task.getDurationMinutes() - minutesElapsed;
+            taskDurationInThisHour = Math.min(60, minutesLeft);
+        }
+
+        // 根据5分钟精度计算高度
+        int heightBlocks = (int) Math.ceil(taskDurationInThisHour / 5.0);
+        int heightPx = Math.round(heightBlocks * dpToPx(FIVE_MIN_HEIGHT_DP));
+
+        // 设置背景颜色
+        if (task.isImportant()) {
+            taskView.setBackgroundResource(R.drawable.important_task_background);
+        } else {
+            taskView.setBackgroundResource(R.drawable.normal_task_background);
+        }
+
+        // 添加任务视图到相应的日期列
+        ViewGroup.MarginLayoutParams layoutParams = new ViewGroup.MarginLayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, heightPx);
+        layoutParams.topMargin = topMarginPx;
+        layoutParams.leftMargin = 2;
+        layoutParams.rightMargin = 2;
+        taskView.setLayoutParams(layoutParams);
+
+        // 设置点击监听器
+        taskView.setOnClickListener(v -> {
+            if (listener != null) {
+                listener.onTaskClick(task);
+            }
+        });
+
+        holder.addTaskView(taskView, dayIndex, topMarginPx, heightPx);
     }
 
     @Override
@@ -126,14 +194,47 @@ public class KanbanTimelineAdapter extends RecyclerView.Adapter<KanbanTimelineAd
                 cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR);
     }
 
+    private float dpToPx(float dp) {
+        return dp * context.getResources().getDisplayMetrics().density;
+    }
+
     static class TimelineViewHolder extends RecyclerView.ViewHolder {
         TextView hourText;
-        ConstraintLayout taskContainer;
+        FrameLayout[] dayColumns;
+        boolean[][] timeSlotOccupied; // [day][minute/5]
 
-        TimelineViewHolder(@NonNull View itemView) {
+        TimelineViewHolder(@NonNull View itemView, int numDays) {
             super(itemView);
             hourText = itemView.findViewById(R.id.hour_text);
-            taskContainer = itemView.findViewById(R.id.task_container);
+
+            // 初始化日期列
+            dayColumns = new FrameLayout[numDays];
+            for (int i = 0; i < numDays; i++) {
+                int resId = itemView.getResources().getIdentifier("day_column_" + i, "id", itemView.getContext().getPackageName());
+                dayColumns[i] = itemView.findViewById(resId);
+            }
+
+            // 初始化时间段跟踪（numDays列，每小时12个5分钟块）
+            timeSlotOccupied = new boolean[numDays][12];
+        }
+
+        void clearTaskViews() {
+            for (FrameLayout column : dayColumns) {
+                column.removeAllViews();
+            }
+
+            // 重置时间段跟踪
+            for (int i = 0; i < dayColumns.length; i++) {
+                for (int j = 0; j < 12; j++) {
+                    timeSlotOccupied[i][j] = false;
+                }
+            }
+        }
+
+        void addTaskView(View taskView, int dayIndex, int topMargin, int height) {
+            if (dayIndex >= 0 && dayIndex < dayColumns.length) {
+                dayColumns[dayIndex].addView(taskView);
+            }
         }
     }
 }
