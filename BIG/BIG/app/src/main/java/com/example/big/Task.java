@@ -18,6 +18,14 @@ public class Task {
     private Date due_date;
     //地点
     private String place;
+    //是否完成
+    private boolean finished;
+    //是否拖延
+    private boolean delayed;
+    //与别的任务存在时间重叠的个数
+    private int layers;
+    //从属的类别（如果有）
+    private String category;
 
     public Task(int id, String title, String timeRange, Date date, int durationMinutes, boolean important) {
         this.id = id;
@@ -115,6 +123,13 @@ public class Task {
         this.due_date = due_date;
     }
 
+    public void setCategory(String category){ this.category = category; }
+
+    public boolean isFinished() { return finished; }
+
+    public void setFinished(boolean finished) {this.finished = finished; }
+
+    public String getCategory() { return category; }
     // 获取所有属性的方法
     public Map<String, Object> getAll() {
         Map<String, Object> taskData = new HashMap<>();
@@ -128,6 +143,10 @@ public class Task {
         taskData.put("user_id", user_id);
         taskData.put("due_date", due_date);
         taskData.put("place", place);
+        taskData.put("finished", finished);
+        taskData.put("delayed", delayed);
+        taskData.put("layers", layers);
+        taskData.put("category", category);
         return taskData;
     }
 

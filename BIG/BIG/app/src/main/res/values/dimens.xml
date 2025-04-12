@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <dimen name="minute_height">1dp</dimen>
+    <dimen name="heatmap_cell_width">15dp</dimen>
+    <dimen name="heatmap_cell_height">15dp</dimen>
+    <dimen name="heatmap_day_width">35dp</dimen>
+    <dimen name="heatmap_month_width">50dp</dimen>
 </resources>
