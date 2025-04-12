@@ -47,6 +47,8 @@ public class AddTaskActivity extends AppCompatActivity {
         initViews();
         setupTimePickers();
         setupAddButton();
+
+        findViewById(R.id.back_button).setOnClickListener(v -> finish());
     }
 
     private void initViews() {

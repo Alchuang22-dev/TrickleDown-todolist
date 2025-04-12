@@ -68,6 +68,8 @@ public class EditTaskActivity extends AppCompatActivity {
 
         // 填充现有任务数据
         populateTaskData();
+
+        findViewById(R.id.back_button).setOnClickListener(v -> finish());
     }
 
     // 示例方法，实际应用中应从数据库获取
