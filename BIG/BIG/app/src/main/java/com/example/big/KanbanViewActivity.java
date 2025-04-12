@@ -7,6 +7,7 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -69,7 +70,14 @@ public class KanbanViewActivity extends AppCompatActivity {
     private void setupDateView() {
         dateContainer.removeAllViews();
 
-        // Add 5 days (-2, -1, today, +1, +2)
+        // 获取今天的日期（用于高亮判断）
+        Calendar today = Calendar.getInstance();
+        today.set(Calendar.HOUR_OF_DAY, 0);
+        today.set(Calendar.MINUTE, 0);
+        today.set(Calendar.SECOND, 0);
+        today.set(Calendar.MILLISECOND, 0);
+
+        // 添加5天 (-2, -1, today, +1, +2)
         Calendar temp = (Calendar) currentDate.clone();
         temp.add(Calendar.DAY_OF_MONTH, -2);
 
@@ -84,14 +92,14 @@ public class KanbanViewActivity extends AppCompatActivity {
             dayText.setText(dayFormat.format(temp.getTime()));
             dateText.setText(dateFormat.format(temp.getTime()));
 
-            // Highlight today
-            if (i == 2) {
+            // 高亮今天（如果今天在当前显示的日期范围内）
+            if (isSameDay(temp.getTime(), today.getTime())) {
                 dateView.setBackgroundResource(R.drawable.current_date_background);
                 dayText.setTextColor(getResources().getColor(R.color.white));
                 dateText.setTextColor(getResources().getColor(R.color.white));
             }
 
-            // Set click listener to open TodayViewActivity
+            // 设置点击监听器打开TodayViewActivity
             final Date clickedDate = temp.getTime();
             dateView.setOnClickListener(v -> {
                 Intent intent = new Intent(KanbanViewActivity.this, TodayViewActivity.class);
@@ -102,6 +110,16 @@ public class KanbanViewActivity extends AppCompatActivity {
             dateContainer.addView(dateView);
             temp.add(Calendar.DAY_OF_MONTH, 1);
         }
+    }
+
+    // 判断两个日期是否是同一天
+    private boolean isSameDay(Date date1, Date date2) {
+        Calendar cal1 = Calendar.getInstance();
+        Calendar cal2 = Calendar.getInstance();
+        cal1.setTime(date1);
+        cal2.setTime(date2);
+        return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
+                cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR);
     }
 
     private void setupTimelineView() {
@@ -117,19 +135,30 @@ public class KanbanViewActivity extends AppCompatActivity {
 
     @SuppressLint("ClickableViewAccessibility")
     private void setupGestureDetection() {
+        // 创建手势检测器专门用于日期滚动
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             private static final int SWIPE_THRESHOLD = 100;
             private static final int SWIPE_VELOCITY_THRESHOLD = 100;
 
             @Override
+            public boolean onDown(MotionEvent e) {
+                // 必须返回true以表示我们对此事件感兴趣
+                return true;
+            }
+
+            @Override
             public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+                if (e1 == null || e2 == null) {
+                    return false;
+                }
+
                 float diffX = e2.getX() - e1.getX();
                 if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
                     if (diffX > 0) {
-                        // Swipe right, go to previous days
+                        // 向右滑动，显示更早的日期
                         currentDate.add(Calendar.DAY_OF_MONTH, -5);
                     } else {
-                        // Swipe left, go to next days
+                        // 向左滑动，显示更晚的日期
                         currentDate.add(Calendar.DAY_OF_MONTH, 5);
                     }
                     setupDateView();
@@ -140,9 +169,11 @@ public class KanbanViewActivity extends AppCompatActivity {
             }
         });
 
-        timelineRecyclerView.setOnTouchListener((v, event) -> {
-            gestureDetector.onTouchEvent(event);
-            return false;
+        // 获取日期滚动视图并添加触摸监听器
+        HorizontalScrollView dateScrollView = findViewById(R.id.date_scroll_view);
+        dateScrollView.setOnTouchListener((v, event) -> {
+            // 将事件传递给手势检测器
+            return gestureDetector.onTouchEvent(event);
         });
     }
 
