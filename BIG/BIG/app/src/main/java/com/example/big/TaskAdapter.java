@@ -41,12 +41,9 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
         holder.taskDueDate.setText(dateString);
 
         // 设置点击事件
-        holder.taskCard.setOnClickListener(v -> {
+        holder.itemView.setOnClickListener(v -> {
             Intent intent = new Intent(context, EditTaskActivity.class);
-            intent.putExtra("TASK_TITLE", task.getTitle());
-            intent.putExtra("TASK_DESCRIPTION", task.getDescription());
-            intent.putExtra("TASK_IS_IMPORTANT", task.isImportant());
-            intent.putExtra("TASK_DUE_DATE", task.getDueDate());
+            intent.putExtra("task_id", task.getId());
             context.startActivity(intent);
         });
     }

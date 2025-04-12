@@ -48,7 +48,12 @@ public class MainActivity extends AppCompatActivity {
         cal.set(Calendar.MINUTE, 0);
         cal.set(Calendar.SECOND, 0);
         cal.set(Calendar.MILLISECOND, 0);
-        importantTasks.add(new Task(6, "上课", "19:00 - 21:00", cal.getTime(), 120, false, "这是一个任务的简介"));
+
+        // 使用明确的十进制数字作为ID
+        int taskId = 12345678; // 8位数ID
+
+        // 使用正确的时间范围格式: "HH : MM -- HH : MM"
+        importantTasks.add(new Task(taskId, "上课", "19 : 00 -- 21 : 00", cal.getTime(), 120, false, "这是一个任务的简介"));
 
         // 设置RecyclerView
         TaskAdapter taskAdapter = new TaskAdapter(importantTasks, this);
