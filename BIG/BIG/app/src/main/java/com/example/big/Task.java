@@ -131,6 +131,14 @@ public class Task {
 
     public void setPlace(String place) {this.place = place; }
 
+    public void setDelayed(boolean delayed) {
+        this.delayed = delayed;
+    }
+
+    public boolean isDelayed() {
+        return delayed;
+    }
+
     public String getCategory() { return category; }
     // 获取所有属性的方法
     public Map<String, Object> getAll() {
