@@ -57,7 +57,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="今日专注"
+                    android:text="今日任务"
                     android:textColor="#0099CC"
                     android:textSize="18sp"
                     android:textStyle="bold" />
@@ -78,7 +78,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="次数"
+                            android:text="事项总数"
                             android:textColor="#666666" />
 
                         <TextView
@@ -101,7 +101,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="时长"
+                            android:text="事项时长"
                             android:textColor="#666666" />
 
                         <TextView
@@ -110,7 +110,7 @@
                             android:layout_height="wrap_content"
                             android:text="0分钟"
                             android:textColor="#0099CC"
-                            android:textSize="24sp"
+                            android:textSize="18sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
@@ -124,7 +124,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="完成任务"
+                            android:text="完成事项"
                             android:textColor="#666666" />
 
                         <TextView
@@ -157,7 +157,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="累计专注"
+                    android:text="累计事项"
                     android:textColor="#0099CC"
                     android:textSize="18sp"
                     android:textStyle="bold" />
@@ -178,7 +178,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="次数"
+                            android:text="事项次数"
                             android:textColor="#666666" />
 
                         <TextView
@@ -201,7 +201,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="时长"
+                            android:text="事项时长"
                             android:textColor="#666666" />
 
                         <TextView
@@ -210,7 +210,7 @@
                             android:layout_height="wrap_content"
                             android:text="0小时0分钟"
                             android:textColor="#0099CC"
-                            android:textSize="24sp"
+                            android:textSize="18sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
@@ -233,7 +233,7 @@
                             android:layout_height="wrap_content"
                             android:text="0小时0分钟"
                             android:textColor="#0099CC"
-                            android:textSize="24sp"
+                            android:textSize="18sp"
                             android:textStyle="bold" />
                     </LinearLayout>
                 </LinearLayout>
