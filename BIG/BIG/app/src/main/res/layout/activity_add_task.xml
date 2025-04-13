@@ -1,293 +1,437 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/white">
+    android:background="@color/white"
+    android:orientation="vertical">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/main"
+    <!-- 顶部栏 -->
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="16dp"
-        tools:context=".AddTaskActivity">
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/white"
+        android:elevation="4dp">
 
-        <!-- 模块1：标题输入 -->
-        <TextView
-            android:id="@+id/label_title"
+        <ImageButton
+            android:id="@+id/back_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="事项标题 (必填)"
-            android:textStyle="bold"
-            android:textColor="@color/navy"
-            android:textSize="16sp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Back"
+            android:padding="8dp"
+            android:src="@android:drawable/ic_menu_revert"
             tools:ignore="HardcodedText" />
 
-        <EditText
-            android:id="@+id/edit_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="请输入事项标题"
-            android:inputType="text"
-            android:maxLines="1"
-            android:textColor="@color/black"
-            android:textColorHint="@color/gray"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/label_title"
-            tools:ignore="Autofill,HardcodedText,TextContrastCheck,TouchTargetSizeCheck,VisualLintTextFieldSize" />
-
-        <!-- 模块2：描述输入 -->
         <TextView
-            android:id="@+id/label_description"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="事项描述 (选填)"
+            android:layout_gravity="center"
+            android:text="添加事项"
+            android:textColor="@android:color/black"
+            android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="@color/navy"
-            android:textSize="16sp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/edit_title"
             tools:ignore="HardcodedText" />
+    </androidx.appcompat.widget.Toolbar>
 
-        <EditText
-            android:id="@+id/edit_description"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:gravity="top"
-            android:hint="请输入事项描述"
-            android:inputType="textMultiLine"
-            android:lines="3"
-            android:maxLines="5"
-            android:textColor="@color/black"
-            android:textColorHint="@color/gray"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/label_description"
-            tools:ignore="Autofill,HardcodedText,TextContrastCheck,VisualLintTextFieldSize" />
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
 
-        <!-- 模块3：截止日期选择 -->
-        <TextView
-            android:id="@+id/label_date"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="截止日期 (必填)"
-            android:textStyle="bold"
-            android:textColor="@color/navy"
-            android:textSize="16sp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/edit_description"
-            tools:ignore="HardcodedText" />
-
-        <DatePicker
-            android:id="@+id/date_picker"
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/main"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:calendarViewShown="false"
-            android:datePickerMode="spinner"
-            android:theme="@style/DatePickerTheme"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/label_date" />
+            android:padding="16dp"
+            tools:context=".AddTaskActivity">
 
-        <!-- 模块4：开始时间选择 -->
-        <TextView
-            android:id="@+id/label_start_time"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="开始时间 (选填)"
-            android:textStyle="bold"
-            android:textColor="@color/navy"
-            android:textSize="16sp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/date_picker"
-            tools:ignore="HardcodedText" />
-
-        <LinearLayout
-            android:id="@+id/start_time_pickers"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/label_start_time">
-
-            <NumberPicker
-                android:id="@+id/start_hour_picker"
-                android:layout_width="0dp"
+            <!-- 模块1：标题输入 -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/card_title"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:theme="@style/NumberPickerTheme"
-                tools:ignore="VisualLintTextFieldSize" />
+                android:layout_marginTop="8dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardUseCompatPadding="true"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
 
-            <TextView
-                android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:id="@+id/label_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="事项标题 (必填)"
+                        android:textColor="@color/navy"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        tools:ignore="HardcodedText,VisualLintOverlap" />
+
+                    <EditText
+                        android:id="@+id/edit_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:hint="请输入事项标题"
+                        android:inputType="text"
+                        android:maxLines="1"
+                        android:textColor="@color/black"
+                        android:textColorHint="@color/gray"
+                        tools:ignore="Autofill,HardcodedText,TextContrastCheck,TouchTargetSizeCheck,VisualLintTextFieldSize,VisualLintOverlap" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- 模块2：描述输入 -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/card_description"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text=" : "
-                android:textSize="18sp"
-                android:textColor="@color/black"
-                tools:ignore="HardcodedText" />
+                android:layout_marginTop="8dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardUseCompatPadding="true"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/card_title">
 
-            <NumberPicker
-                android:id="@+id/start_minute_picker"
-                android:layout_width="0dp"
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:id="@+id/label_description"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="事项描述 (选填)"
+                        android:textColor="@color/navy"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        tools:ignore="HardcodedText" />
+
+                    <EditText
+                        android:id="@+id/edit_description"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="top"
+                        android:hint="请输入事项描述"
+                        android:inputType="textMultiLine"
+                        android:lines="3"
+                        android:maxLines="5"
+                        android:textColor="@color/black"
+                        android:textColorHint="@color/gray"
+                        tools:ignore="Autofill,HardcodedText,TextContrastCheck,VisualLintTextFieldSize" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- 模块3：截止日期选择 -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/card_date"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:theme="@style/NumberPickerTheme"
-                tools:ignore="VisualLintTextFieldSize" />
-        </LinearLayout>
+                android:layout_marginTop="8dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardUseCompatPadding="true"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/card_description">
 
-        <!-- 模块5：结束时间选择 -->
-        <TextView
-            android:id="@+id/label_end_time"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="结束时间 (选填)"
-            android:textStyle="bold"
-            android:textColor="@color/navy"
-            android:textSize="16sp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/start_time_pickers"
-            tools:ignore="HardcodedText" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
 
-        <LinearLayout
-            android:id="@+id/end_time_pickers"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/label_end_time">
+                    <TextView
+                        android:id="@+id/label_date"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="截止日期 (必填)"
+                        android:textColor="@color/navy"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        tools:ignore="HardcodedText" />
 
-            <NumberPicker
-                android:id="@+id/end_hour_picker"
-                android:layout_width="0dp"
+                    <DatePicker
+                        android:id="@+id/date_picker"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:calendarViewShown="false"
+                        android:datePickerMode="spinner"
+                        android:theme="@style/DatePickerTheme" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- 模块4：开始时间选择 -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/card_start_time"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:theme="@style/NumberPickerTheme"
-                tools:ignore="VisualLintTextFieldSize" />
+                android:layout_marginTop="8dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardUseCompatPadding="true"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/card_date">
 
-            <TextView
-                android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:id="@+id/label_start_time"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="开始时间 (选填)"
+                        android:textColor="@color/navy"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        tools:ignore="HardcodedText" />
+
+                    <LinearLayout
+                        android:id="@+id/start_time_pickers"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                        <NumberPicker
+                            android:id="@+id/start_hour_picker"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:theme="@style/NumberPickerTheme"
+                            tools:ignore="VisualLintTextFieldSize" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
+                            android:text=" : "
+                            android:textColor="@color/black"
+                            android:textSize="18sp"
+                            tools:ignore="HardcodedText" />
+
+                        <NumberPicker
+                            android:id="@+id/start_minute_picker"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:theme="@style/NumberPickerTheme"
+                            tools:ignore="VisualLintTextFieldSize" />
+                    </LinearLayout>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- 模块5：结束时间选择 -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/card_end_time"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text=" : "
-                android:textSize="18sp"
-                android:textColor="@color/black"
-                tools:ignore="HardcodedText" />
+                android:layout_marginTop="8dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardUseCompatPadding="true"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/card_start_time">
 
-            <NumberPicker
-                android:id="@+id/end_minute_picker"
-                android:layout_width="0dp"
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:id="@+id/label_end_time"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="结束时间 (选填)"
+                        android:textColor="@color/navy"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        tools:ignore="HardcodedText" />
+
+                    <LinearLayout
+                        android:id="@+id/end_time_pickers"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                        <NumberPicker
+                            android:id="@+id/end_hour_picker"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:theme="@style/NumberPickerTheme"
+                            tools:ignore="VisualLintTextFieldSize" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
+                            android:text=" : "
+                            android:textColor="@color/black"
+                            android:textSize="18sp"
+                            tools:ignore="HardcodedText" />
+
+                        <NumberPicker
+                            android:id="@+id/end_minute_picker"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:theme="@style/NumberPickerTheme"
+                            tools:ignore="VisualLintTextFieldSize" />
+                    </LinearLayout>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- 模块6：地点输入 -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/card_place"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:theme="@style/NumberPickerTheme"
-                tools:ignore="VisualLintTextFieldSize" />
-        </LinearLayout>
+                android:layout_marginTop="8dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardUseCompatPadding="true"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/card_end_time">
 
-        <!-- 模块6：地点输入 -->
-        <TextView
-            android:id="@+id/label_place"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="事项地点 (选填)"
-            android:textStyle="bold"
-            android:textColor="@color/navy"
-            android:textSize="16sp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/end_time_pickers"
-            tools:ignore="HardcodedText" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
 
-        <EditText
-            android:id="@+id/edit_place"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="请输入事项地点"
-            android:inputType="text"
-            android:maxLines="1"
-            android:textColor="@color/black"
-            android:textColorHint="@color/gray"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/label_place"
-            tools:ignore="Autofill,HardcodedText,VisualLintTextFieldSize" />
+                    <TextView
+                        android:id="@+id/label_place"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="事项地点 (选填)"
+                        android:textColor="@color/navy"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        tools:ignore="HardcodedText" />
 
-        <!-- 模块7：重要性选择 -->
-        <TextView
-            android:id="@+id/label_important"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="重要事项"
-            android:textStyle="bold"
-            android:textColor="@color/navy"
-            android:textSize="16sp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/edit_place"
-            tools:ignore="HardcodedText" />
+                    <EditText
+                        android:id="@+id/edit_place"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:hint="请输入事项地点"
+                        android:inputType="text"
+                        android:maxLines="1"
+                        android:textColor="@color/black"
+                        android:textColorHint="@color/gray"
+                        tools:ignore="Autofill,HardcodedText,VisualLintTextFieldSize" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
 
-        <TextView
-            android:id="@+id/text_no"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="否"
-            android:textColor="@color/black"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/label_important"
-            tools:ignore="HardcodedText" />
+            <!-- 模块7：重要性选择 -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/card_important"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardUseCompatPadding="true"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/card_place">
 
-        <Switch
-            android:id="@+id/switch_important"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:theme="@style/SwitchTheme"
-            app:layout_constraintEnd_toStartOf="@id/text_yes"
-            app:layout_constraintStart_toEndOf="@id/text_no"
-            app:layout_constraintTop_toBottomOf="@id/label_important"
-            tools:ignore="UseSwitchCompatOrMaterialXml" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
 
-        <TextView
-            android:id="@+id/text_yes"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="是"
-            android:textColor="@color/black"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/label_important"
-            tools:ignore="HardcodedText" />
+                    <TextView
+                        android:id="@+id/label_important"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="重要事项"
+                        android:textColor="@color/navy"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        tools:ignore="HardcodedText" />
 
-        <!-- 模块8：添加按钮 -->
-        <Button
-            android:id="@+id/button_add"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="添加"
-            android:textSize="16sp"
-            android:textColor="@color/white"
-            android:backgroundTint="@color/blue"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/switch_important"
-            tools:ignore="HardcodedText,VisualLintButtonSize" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center"
+                        android:orientation="horizontal">
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
-</ScrollView>
+                        <TextView
+                            android:id="@+id/text_no"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="否"
+                            android:textColor="@color/black"
+                            tools:ignore="HardcodedText" />
+
+                        <Switch
+                            android:id="@+id/switch_important"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="16dp"
+                            android:layout_marginEnd="16dp"
+                            android:theme="@style/SwitchTheme"
+                            tools:ignore="UseSwitchCompatOrMaterialXml" />
+
+                        <TextView
+                            android:id="@+id/text_yes"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="是"
+                            android:textColor="@color/black"
+                            tools:ignore="HardcodedText" />
+                    </LinearLayout>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- 模块8：添加按钮 -->
+            <Button
+                android:id="@+id/button_add"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:backgroundTint="@color/blue"
+                android:text="添加"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/card_important"
+                tools:ignore="HardcodedText,VisualLintButtonSize" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </ScrollView>
+</LinearLayout>

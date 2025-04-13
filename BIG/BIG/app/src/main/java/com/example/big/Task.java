@@ -129,6 +129,8 @@ public class Task {
 
     public void setFinished(boolean finished) {this.finished = finished; }
 
+    public void setPlace(String place) {this.place = place; }
+
     public String getCategory() { return category; }
     // 获取所有属性的方法
     public Map<String, Object> getAll() {

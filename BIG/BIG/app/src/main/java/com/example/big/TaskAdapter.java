@@ -17,8 +17,9 @@ import java.util.Locale;
 
 public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder> {
 
-    private final List<Task> taskList;
-    private final Context context;
+    private List<Task> taskList;
+    private Context context;
+    private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault());
 
     public TaskAdapter(List<Task> taskList, Context context) {
         this.taskList = taskList;
@@ -28,23 +29,38 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
     @NonNull
     @Override
     public TaskViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.task_item, parent, false);
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.task, parent, false);
         return new TaskViewHolder(view);
     }
 
     @Override
     public void onBindViewHolder(@NonNull TaskViewHolder holder, int position) {
         Task task = taskList.get(position);
-        holder.taskTitle.setText(task.getTitle());
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-        String dateString = sdf.format(task.getDate());
-        holder.taskDueDate.setText(dateString);
 
-        // 设置点击事件
-        holder.itemView.setOnClickListener(v -> {
-            Intent intent = new Intent(context, EditTaskActivity.class);
-            intent.putExtra("task_id", task.getId());
-            context.startActivity(intent);
+        holder.titleText.setText(task.getTitle());
+        holder.timeRangeText.setText(task.getTimeRange());
+
+        if (task.getDate() != null) {
+            holder.dateText.setText(dateFormat.format(task.getDate()));
+        } else {
+            holder.dateText.setText("未设定日期");
+        }
+
+        if (task.getDescription() != null && !task.getDescription().isEmpty()) {
+            holder.descriptionText.setText(task.getDescription());
+            holder.descriptionText.setVisibility(View.VISIBLE);
+        } else {
+            holder.descriptionText.setVisibility(View.GONE);
+        }
+
+        // 设置任务项点击事件
+        holder.itemView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(context, EditTaskActivity.class);
+                intent.putExtra("task_id", task.getId());
+                context.startActivity(intent);
+            }
         });
     }
 
@@ -54,15 +70,19 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
     }
 
     public static class TaskViewHolder extends RecyclerView.ViewHolder {
-        TextView taskTitle;
-        TextView taskDueDate;
-        CardView taskCard;
+        CardView taskCardView;
+        TextView titleText;
+        TextView timeRangeText;
+        TextView dateText;
+        TextView descriptionText;
 
         public TaskViewHolder(@NonNull View itemView) {
             super(itemView);
-            taskTitle = itemView.findViewById(R.id.task_title);
-            taskDueDate = itemView.findViewById(R.id.task_due_date);
-            taskCard = itemView.findViewById(R.id.task_card);
+            taskCardView = itemView.findViewById(R.id.task_card_view);
+            titleText = itemView.findViewById(R.id.task_title);
+            timeRangeText = itemView.findViewById(R.id.task_time_range);
+            dateText = itemView.findViewById(R.id.task_date);
+            descriptionText = itemView.findViewById(R.id.task_description);
         }
     }
 }
