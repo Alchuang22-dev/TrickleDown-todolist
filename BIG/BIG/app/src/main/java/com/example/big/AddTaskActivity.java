@@ -19,6 +19,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.Random;
 
+
 public class AddTaskActivity extends AppCompatActivity {
     private EditText titleEditText;
     private EditText descriptionEditText;
@@ -31,6 +32,12 @@ public class AddTaskActivity extends AppCompatActivity {
     @SuppressLint("UseSwitchCompatOrMaterialCode")
     private Switch importantSwitch;
     private Button addButton;
+    // 声明新增的事项标签相关控件
+    private EditText categoryEditText;
+    private Button studyButton;
+    private Button workButton;
+    private Button lifeButton;
+    private Button otherButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,6 +54,7 @@ public class AddTaskActivity extends AppCompatActivity {
         initViews();
         setupTimePickers();
         setupAddButton();
+        setupCategoryButtons();
 
         findViewById(R.id.back_button).setOnClickListener(v -> finish());
     }
@@ -62,6 +70,11 @@ public class AddTaskActivity extends AppCompatActivity {
         placeEditText = findViewById(R.id.edit_place);
         importantSwitch = findViewById(R.id.switch_important);
         addButton = findViewById(R.id.button_add);
+        categoryEditText = findViewById(R.id.edit_category);
+        studyButton = findViewById(R.id.button_study);
+        workButton = findViewById(R.id.button_work);
+        lifeButton = findViewById(R.id.button_life);
+        otherButton = findViewById(R.id.button_other);
     }
 
     private void setupTimePickers() {
@@ -114,6 +127,13 @@ public class AddTaskActivity extends AppCompatActivity {
         addButton.setOnClickListener(v -> createNewTask());
     }
 
+    private void setupCategoryButtons() {
+        studyButton.setOnClickListener(v -> categoryEditText.setText("学习"));
+        workButton.setOnClickListener(v -> categoryEditText.setText("工作"));
+        lifeButton.setOnClickListener(v -> categoryEditText.setText("生活"));
+        otherButton.setOnClickListener(v -> categoryEditText.setText("其他"));
+    }
+
     private void createNewTask() {
         String title = titleEditText.getText().toString().trim();
 
@@ -146,12 +166,13 @@ public class AddTaskActivity extends AppCompatActivity {
         // 获取重要性
         boolean important = importantSwitch.isChecked();
 
-        // 获取时间范围和持续时间
-        String timeRange;
-        int durationMinutes;
-        Date dueDate;
+        // 获取标签
+        String category = categoryEditText.getText().toString().trim();
+        if (category.isEmpty()) {
+            category = "其他"; // 默认标签
+        }
 
-        // 检查是否设置了时间范围
+        // 获取时间范围和持续时间
         int startHour = startHourPicker.getValue();
         int endHour = endHourPicker.getValue();
         int startMinuteIndex = startMinutePicker.getValue();
@@ -165,20 +186,25 @@ public class AddTaskActivity extends AppCompatActivity {
         @SuppressLint("DefaultLocale") String endHourStr = String.format("%02d", endHour);
         @SuppressLint("DefaultLocale") String endMinuteStr = String.format("%02d", endMinute);
 
-        timeRange = startHourStr + " : " + startMinuteStr + " -- " + endHourStr + " : " + endMinuteStr;
+        String timeRange = startHourStr + " : " + startMinuteStr + " -- " + endHourStr + " : " + endMinuteStr;
 
         // 计算持续时间（分钟）
-        durationMinutes = (endHour - startHour) * 60 + (endMinute - startMinute);
+        int durationMinutes = (endHour - startHour) * 60 + (endMinute - startMinute);
 
         // 如果时间范围有效，设置dueDate为日期加结束时间
         Calendar dueCal = Calendar.getInstance();
         dueCal.setTime(date);
         dueCal.set(Calendar.HOUR_OF_DAY, endHour);
         dueCal.set(Calendar.MINUTE, endMinute);
-        dueDate = dueCal.getTime();
+        Date dueDate = dueCal.getTime();
 
         // 创建任务
         Task newTask = new Task(id, title, timeRange, date, durationMinutes, important, description, place, dueDate);
+        newTask.setCategory(category);
+        // 新任务默认设置为未完成
+        newTask.setFinished(false);
+        // 由于Task类中没有setDelayed方法，我们不能设置延期状态
+        // 您需要在Task类中添加这个方法
 
         // 这里可以添加保存任务到数据库或传递回上一个Activity的代码
 
