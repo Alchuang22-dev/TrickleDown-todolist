@@ -4,10 +4,12 @@ import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.NumberPicker;
 import android.widget.Switch;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -34,6 +36,15 @@ public class EditTaskActivity extends AppCompatActivity {
     private Switch importantSwitch;
     private Button editButton;
     private Button deleteButton;
+    private CheckBox finishedCheckBox;
+    private CheckBox delayedCheckBox;
+    private TextView finishedStatusText;
+    private TextView delayedStatusText;
+    private EditText categoryEditText;
+    private Button studyButton;
+    private Button workButton;
+    private Button lifeButton;
+    private Button otherButton;
 
     private Task currentTask;
     private int taskId;
@@ -60,11 +71,18 @@ public class EditTaskActivity extends AppCompatActivity {
         // 从数据库或其他存储中获取任务对象
         // 这里示例使用，实际应用中应该从数据库获取
         currentTask = getTaskById(taskId);
+        if (currentTask == null) {
+            Toast.makeText(this, "无法找到任务", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
 
         // 初始化控件
         initViews();
         setupTimePickers();
         setupButtons();
+        setupStatusCheckBoxes();
+        setupCategoryButtons();
 
         // 填充现有任务数据
         populateTaskData();
@@ -79,7 +97,12 @@ public class EditTaskActivity extends AppCompatActivity {
         Calendar cal = Calendar.getInstance();
         Date date = cal.getTime();
 
-        return new Task(id, "示例任务", "09 : 00 -- 10 : 30", date, 90, true, "这是一个示例任务描述", "示例地点", date);
+        Task task = new Task(id, "示例任务", "09 : 00 -- 10 : 30", date, 90, true, "这是一个示例任务描述", "示例地点", date);
+        task.setCategory("学习");
+        task.setFinished(false);
+        // 由于Task类中没有setDelayed方法，我们不能在这里设置延期状态
+        // 需要在Task类中添加这个方法
+        return task;
     }
 
     private void initViews() {
@@ -94,6 +117,15 @@ public class EditTaskActivity extends AppCompatActivity {
         importantSwitch = findViewById(R.id.switch_important);
         editButton = findViewById(R.id.button_edit);
         deleteButton = findViewById(R.id.button_delete);
+        finishedCheckBox = findViewById(R.id.checkbox_finished);
+        delayedCheckBox = findViewById(R.id.checkbox_delayed);
+        finishedStatusText = findViewById(R.id.text_finished_status);
+        delayedStatusText = findViewById(R.id.text_delayed_status);
+        categoryEditText = findViewById(R.id.edit_category);
+        studyButton = findViewById(R.id.button_study);
+        workButton = findViewById(R.id.button_work);
+        lifeButton = findViewById(R.id.button_life);
+        otherButton = findViewById(R.id.button_other);
     }
 
     private void setupTimePickers() {
@@ -144,8 +176,20 @@ public class EditTaskActivity extends AppCompatActivity {
 
     private void setupButtons() {
         editButton.setOnClickListener(v -> updateTask());
-
         deleteButton.setOnClickListener(v -> confirmDelete());
+    }
+
+    private void setupStatusCheckBoxes() {
+        finishedCheckBox.setOnCheckedChangeListener((buttonView, isChecked) -> finishedStatusText.setText(isChecked ? "已完成" : "未完成"));
+
+        delayedCheckBox.setOnCheckedChangeListener((buttonView, isChecked) -> delayedStatusText.setText(isChecked ? "已延期" : "按时完成"));
+    }
+
+    private void setupCategoryButtons() {
+        studyButton.setOnClickListener(v -> categoryEditText.setText("学习"));
+        workButton.setOnClickListener(v -> categoryEditText.setText("工作"));
+        lifeButton.setOnClickListener(v -> categoryEditText.setText("生活"));
+        otherButton.setOnClickListener(v -> categoryEditText.setText("其他"));
     }
 
     private void populateTaskData() {
@@ -205,6 +249,26 @@ public class EditTaskActivity extends AppCompatActivity {
 
         // 设置重要性
         importantSwitch.setChecked((Boolean) taskData.get("important"));
+
+        // 设置完成状态
+        if (taskData.get("finished") != null) {
+            boolean finished = (Boolean) taskData.get("finished");
+            finishedCheckBox.setChecked(finished);
+            finishedStatusText.setText(finished ? "已完成" : "未完成");
+        }
+
+        // 设置延期状态
+        if (taskData.get("delayed") != null) {
+            boolean delayed = (Boolean) taskData.get("delayed");
+            delayedCheckBox.setChecked(delayed);
+            delayedStatusText.setText(delayed ? "已延期" : "按时完成");
+        }
+
+        // 设置分类标签
+        if (taskData.get("category") != null) {
+            String category = (String) taskData.get("category");
+            categoryEditText.setText(category);
+        }
     }
 
     private void updateTask() {
@@ -237,11 +301,6 @@ public class EditTaskActivity extends AppCompatActivity {
         boolean important = importantSwitch.isChecked();
 
         // 获取时间范围和持续时间
-        String timeRange;
-        int durationMinutes;
-        Date dueDate;
-
-        // 检查是否设置了时间范围
         int startHour = startHourPicker.getValue();
         int endHour = endHourPicker.getValue();
         int startMinuteIndex = startMinutePicker.getValue();
@@ -255,22 +314,38 @@ public class EditTaskActivity extends AppCompatActivity {
         @SuppressLint("DefaultLocale") String endHourStr = String.format("%02d", endHour);
         @SuppressLint("DefaultLocale") String endMinuteStr = String.format("%02d", endMinute);
 
-        timeRange = startHourStr + " : " + startMinuteStr + " -- " + endHourStr + " : " + endMinuteStr;
+        String timeRange = startHourStr + " : " + startMinuteStr + " -- " + endHourStr + " : " + endMinuteStr;
 
         // 计算持续时间（分钟）
-        durationMinutes = (endHour - startHour) * 60 + (endMinute - startMinute);
+        int durationMinutes = (endHour - startHour) * 60 + (endMinute - startMinute);
 
         // 如果时间范围有效，设置dueDate为日期加结束时间
         Calendar dueCal = Calendar.getInstance();
         dueCal.setTime(date);
         dueCal.set(Calendar.HOUR_OF_DAY, endHour);
         dueCal.set(Calendar.MINUTE, endMinute);
-        dueDate = dueCal.getTime();
+        Date dueDate = dueCal.getTime();
+
+        // 获取完成状态
+        boolean finished = finishedCheckBox.isChecked();
+
+        // 获取标签
+        String category = categoryEditText.getText().toString().trim();
+        if (category.isEmpty()) {
+            category = "其他"; // 默认标签
+        }
 
         // 更新任务
         currentTask.edit(title, timeRange, date, durationMinutes, important, description, place, dueDate);
+        currentTask.setFinished(finished);
+        currentTask.setPlace(place);
+        currentTask.setCategory(category);
 
-        // 这里可以添加保存任务到数据库的代码
+        // 由于Task类中没有setDelayed方法，我们不能设置延期状态
+        // 您需要在Task类中添加这个方法：
+        // public void setDelayed(boolean delayed) {
+        //     this.delayed = delayed;
+        // }
 
         Toast.makeText(this, "任务已更新: " + title, Toast.LENGTH_SHORT).show();
 
