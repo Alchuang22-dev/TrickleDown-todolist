@@ -7,4 +7,8 @@
     <color name="blue">#2196F3</color>
     <color name="red">#F44336</color>
     <color name="light_blue">#ADD8E6</color>
+    <color name="important_task_bg">#FFECB3</color> <!-- 重要任务浅黄色背景 -->
+    <color name="important_task_indicator">#FF9800</color> <!-- 重要任务橙色指示器 -->
+    <color name="normal_task_bg">#E3F2FD</color> <!-- 普通任务浅蓝色背景 -->
+    <color name="normal_task_indicator">#2196F3</color> <!-- 普通任务蓝色指示器 -->
 </resources>

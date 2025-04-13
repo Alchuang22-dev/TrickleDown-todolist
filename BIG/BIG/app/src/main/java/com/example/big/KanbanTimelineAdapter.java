@@ -6,15 +6,19 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.TextView;
+import androidx.cardview.widget.CardView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class KanbanTimelineAdapter extends RecyclerView.Adapter<KanbanTimelineAdapter.TimelineViewHolder> {
 
@@ -30,7 +34,13 @@ public class KanbanTimelineAdapter extends RecyclerView.Adapter<KanbanTimelineAd
     private static final int END_HOUR = 23;
 
     // 每5分钟的高度（dp）
-    private static final float FIVE_MIN_HEIGHT_DP = 5.0f;
+    private static final float FIVE_MIN_HEIGHT_DP = 6.0f;
+
+    // 进一步增加最小任务高度以确保文字完全显示
+    private static final float MIN_TASK_HEIGHT_DP = 50.0f; // 修改1: 从40dp增加到50dp
+
+    // 存储处理过的任务ID，避免在同一个任务中重复显示内容
+    private Map<Integer, Boolean> processedTaskIds = new HashMap<>();
 
     public interface OnTaskClickListener {
         void onTaskClick(Task task);
@@ -68,6 +78,9 @@ public class KanbanTimelineAdapter extends RecyclerView.Adapter<KanbanTimelineAd
 
         // 清除现有任务视图
         holder.clearTaskViews();
+
+        // 修改2: 每个小时重置处理过的任务ID
+        processedTaskIds.clear();
 
         // 获取当前日期范围的起始日期
         Calendar startDateCal = Calendar.getInstance();
@@ -108,25 +121,46 @@ public class KanbanTimelineAdapter extends RecyclerView.Adapter<KanbanTimelineAd
                                 taskStartHour < hour &&
                                 taskStartHour + ((taskStartMinute + task.getDurationMinutes()) / 60) > hour)) {
 
-                    // 创建任务视图
-                    addTaskViewToHolder(holder, task, hour, dayIndex);
+                    // 创建任务视图，处理跨小时任务
+                    addTaskViewToHolder(holder, task, hour, dayIndex, taskStartHour);
                 }
             }
         }
     }
 
-    private void addTaskViewToHolder(TimelineViewHolder holder, Task task, int hour, int dayIndex) {
+    private void addTaskViewToHolder(TimelineViewHolder holder, Task task, int hour, int dayIndex, int taskStartHour) {
+        // 修改3: 检查这个任务在这一天是否已经处理过，避免重复显示
+        String taskKey = task.getId() + "_" + dayIndex;
+        Boolean processed = processedTaskIds.get(task.getId());
+
+        // 如果不是任务开始的小时，且已经处理过这个任务，就跳过（避免重复）
+        if (taskStartHour != hour && processed != null && processed) {
+            return;
+        }
+
+        // 标记这个任务ID已经处理过
+        processedTaskIds.put(task.getId(), true);
+
         View taskView = LayoutInflater.from(context).inflate(R.layout.item_task, null);
         TextView taskTitle = taskView.findViewById(R.id.task_title);
         TextView taskTime = taskView.findViewById(R.id.task_time);
+        CardView taskCard = taskView.findViewById(R.id.task_card);
 
         taskTitle.setText(task.getTitle());
-        taskTime.setText(task.getTimeRange());
 
-        // 解析任务开始时间
-        String[] timeParts = task.getTimeRange().split(" - ")[0].split(":");
-        int taskStartHour = Integer.parseInt(timeParts[0]);
-        int taskStartMinute = Integer.parseInt(timeParts[1]);
+        // 解析任务开始和结束时间
+        String[] timeParts = task.getTimeRange().split(" - ");
+        String startTime = timeParts[0];
+        String endTime = timeParts.length > 1 ? timeParts[1] : "";
+
+        // 解析具体时间
+        String[] startTimeParts = startTime.split(":");
+        int taskStartHourFromTime = Integer.parseInt(startTimeParts[0]);
+        int taskStartMinute = Integer.parseInt(startTimeParts[1]);
+
+        String[] endTimeParts = endTime.split(":");
+        int taskEndHour = Integer.parseInt(endTimeParts[0]);
+        int taskEndMinute = Integer.parseInt(endTimeParts[1]);
 
         // 计算top margin（如果任务在此小时开始）
         int topMarginPx = 0;
@@ -139,35 +173,78 @@ public class KanbanTimelineAdapter extends RecyclerView.Adapter<KanbanTimelineAd
 
         // 计算此小时内的任务高度
         int taskDurationInThisHour;
-        if (taskStartHour == hour) {
+
+        // 修改4: 特殊处理跨小时的边界情况
+        // 如果任务在当前小时结束，使用结束分钟计算
+        if (taskEndHour == hour) {
+            taskDurationInThisHour = taskEndMinute;
+        } else if (taskStartHour == hour) {
             // 任务在此小时开始
             int minutesLeft = 60 - taskStartMinute;
             taskDurationInThisHour = Math.min(minutesLeft, task.getDurationMinutes());
         } else {
-            // 任务从前一个小时延续
-            int hoursElapsed = hour - taskStartHour;
-            int minutesElapsed = hoursElapsed * 60 - taskStartMinute;
-            int minutesLeft = task.getDurationMinutes() - minutesElapsed;
-            taskDurationInThisHour = Math.min(60, minutesLeft);
+            // 任务从前一个小时延续到整个当前小时
+            taskDurationInThisHour = 60;
         }
 
         // 根据5分钟精度计算高度
         int heightBlocks = (int) Math.ceil(taskDurationInThisHour / 5.0);
         int heightPx = Math.round(heightBlocks * dpToPx(FIVE_MIN_HEIGHT_DP));
 
-        // 设置背景颜色
-        if (task.isImportant()) {
-            taskView.setBackgroundResource(R.drawable.important_task_background);
+        // 确保任务视图至少有最小高度
+        int minHeightPx = Math.round(dpToPx(MIN_TASK_HEIGHT_DP));
+        if (heightPx < minHeightPx) {
+            heightPx = minHeightPx;
+        }
+
+        // 修改5: 根据任务高度决定是否显示时间
+        if (heightPx < minHeightPx * 1.2) { // 如果高度接近最小高度，只显示标题
+            taskTitle.setMaxLines(2); // 允许标题最多两行
+            taskTime.setVisibility(View.GONE); // 隐藏时间文本
         } else {
-            taskView.setBackgroundResource(R.drawable.normal_task_background);
+            taskTime.setText(task.getTimeRange());
+            taskTime.setVisibility(View.VISIBLE);
+        }
+
+        // 设置更明显的背景颜色和样式
+        if (task.isImportant()) {
+            taskCard.setCardBackgroundColor(ContextCompat.getColor(context, R.color.important_task_bg));
+            View importanceIndicator = taskView.findViewById(R.id.importance_indicator);
+            if (importanceIndicator != null) {
+                importanceIndicator.setBackgroundColor(ContextCompat.getColor(context, R.color.important_task_indicator));
+                importanceIndicator.setVisibility(View.VISIBLE);
+            }
+        } else {
+            taskCard.setCardBackgroundColor(ContextCompat.getColor(context, R.color.normal_task_bg));
+            View importanceIndicator = taskView.findViewById(R.id.importance_indicator);
+            if (importanceIndicator != null) {
+                importanceIndicator.setBackgroundColor(ContextCompat.getColor(context, R.color.normal_task_indicator));
+                importanceIndicator.setVisibility(View.VISIBLE);
+            }
+        }
+
+        // 增加卡片阴影以提高视觉区分度
+        taskCard.setCardElevation(4f);
+
+        // 修改6: 调整任务结束时间，使其与小时网格对齐
+        // 如果任务结束时间是整点或半点，调整高度确保视觉上对齐
+        if (taskEndHour == hour + 1 && taskEndMinute == 0) {
+            // 任务在下一个整点结束，确保视觉上对齐到小时线
+            heightPx = 60 * Math.round(dpToPx(FIVE_MIN_HEIGHT_DP) / 5);
+        } else if (taskEndHour == hour && (taskEndMinute == 0 || taskEndMinute == 30)) {
+            // 任务在当前小时的整点或半点结束，调整以对齐
+            int exactHeightPx = Math.round((taskEndMinute / 5) * dpToPx(FIVE_MIN_HEIGHT_DP));
+            if (exactHeightPx > minHeightPx) {
+                heightPx = exactHeightPx;
+            }
         }
 
         // 添加任务视图到相应的日期列
         ViewGroup.MarginLayoutParams layoutParams = new ViewGroup.MarginLayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, heightPx);
         layoutParams.topMargin = topMarginPx;
-        layoutParams.leftMargin = 2;
-        layoutParams.rightMargin = 2;
+        layoutParams.leftMargin = 3;
+        layoutParams.rightMargin = 3;
         taskView.setLayoutParams(layoutParams);
 
         // 设置点击监听器
