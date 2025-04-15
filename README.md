@@ -164,6 +164,7 @@
 - UI组件架构
   - **Jetpack Compose** - Google推荐的现代声明式UI工具包，能轻松实现拖拽功能和复杂动画
   - **Material Design 3** - 提供美观一致的UI组件和设计语言
+  - **Chakra UI**？
 
 - 状态管理方案
   - **Kotlin Flow/StateFlow** - 响应式编程处理应用状态（现阶段我们已经转向Java开发）
@@ -173,7 +174,10 @@
   - **Jetpack Navigation** - 简化Fragment间导航，支持安全参数传递
 
 - 本地存储设计
-  - **DataStore**
+  - **DataStore**？
+
+- 前端框架
+  - **React**?
 
 
 ### 2. 后端模块
@@ -190,6 +194,7 @@
 - 服务器架构
   - 我们正在使用的服务器后端为Ubuntu上的**Gin/Gorm**架构
   - 视情况使用**Firebase**
+  - **Airtable**？
 
 
 ### 3. 数据流设计
