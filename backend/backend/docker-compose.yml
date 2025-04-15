@@ -1,0 +1,67 @@
+version: '3.8'
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb_container
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: mango12345678
+      MONGO_INITDB_DATABASE: Trickledown
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - backend
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh mongodb://root:mango12345678@localhost:27017/admin --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-app:  # 修改为新的服务名
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: user_api_container
+    restart: always
+    # 不需要暴露端口，因为通过nginx访问
+    # ports:
+    #   - "8080:8080"
+    environment:
+      - MONGO_URI=mongodb://root:mango12345678@mongodb:27017/admin
+      - MONGO_DB=Trickledown
+      - TZ=Asia/Shanghai 
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./upload:/app/upload
+    networks:
+      - backend
+      - frontend
+
+  # 假设原有的nginx容器已经存在，可以复用
+  # 如果需要修改配置，您需要确保不影响原有服务
+  nginx:
+    image: nginx:latest
+    container_name: nginx_container
+    restart: always
+    ports:
+      - "80:80"
+      - "8081:8081"  # 如果使用方案3，添加这个端口
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - user-app  # 添加对新服务的依赖
+    networks:
+      - frontend
+
+volumes:
+  mongodb_data:
+
+networks:
+  backend:
+  frontend:
+    external: true  # 如果需要与现有服务共享网络，设置为外部网络
