@@ -7,53 +7,59 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+import java.util.ArrayList;
+
 /**
  * 用户类，管理用户信息、状态和权限
  */
 public class User {
     // 用户状态枚举
     public enum UserStatus {
-        LOGGED_OUT,      // 退出登录
-        REGISTERED,      // 已注册但未登录
-        LOGGED_IN        // 已登录
+        LOGGED_OUT, // 退出登录
+        REGISTERED, // 已注册但未登录
+        LOGGED_IN // 已登录
     }
 
     // 权限类型
     public enum PermissionType {
-        ALARM,           // 闹钟权限
-        NOTIFICATION,    // 通知权限
-        LOCATION,        // 位置权限
-        STORAGE,         // 存储权限
-        CALENDAR,        // 日历权限
-        CONTACTS         // 联系人权限
+        ALARM, // 闹钟权限
+        NOTIFICATION, // 通知权限
+        LOCATION, // 位置权限
+        STORAGE, // 存储权限
+        CALENDAR, // 日历权限
+        CONTACTS // 联系人权限
     }
 
     // 基本用户信息
-    private final int id;                  // 用户ID
-    private final String username;         // 用户名
-    private String nickname;         // 昵称
-    private String email;            // 邮箱
-    private String phoneNumber;      // 手机号
-    private Bitmap avatar;           // 头像（Bitmap格式）
-    private Uri avatarUri;           // 头像URI
-    private Date createdDate;        // 账户创建日期
-    private Date lastLoginDate;      // 最后登录日期
+    private final int id; // 用户ID
+    private final String username; // 用户名
+    private String nickname; // 昵称
+    private String email; // 邮箱
+    private String phoneNumber; // 手机号
+    private Bitmap avatar; // 头像（Bitmap格式）
+    private Uri avatarUri; // 头像URI
+    private Date createdDate; // 账户创建日期
+    private Date lastLoginDate; // 最后登录日期
 
     // 用户状态
-    private UserStatus status;       // 当前状态
+    private UserStatus status; // 当前状态
 
     // 身份验证信息
-    private String token;            // 登录令牌
-    private Date tokenExpireDate;    // 令牌过期时间
-    private String refreshToken;     // 刷新令牌
+    private String token; // 登录令牌
+    private Date tokenExpireDate; // 令牌过期时间
+    private String refreshToken; // 刷新令牌
 
     // 用户偏好和设置
     private final Map<PermissionType, Boolean> permissions; // 权限设置
-    private final Map<String, Object> preferences;         // 其他用户偏好
+    private final Map<String, Object> preferences; // 其他用户偏好
+
+    // 用户绑定的任务
+    private ArrayList<Integer> task_id;
 
     /**
      * 基本构造函数
-     * @param id 用户ID
+     * 
+     * @param id       用户ID
      * @param username 用户名
      */
     public User(int id, String username) {
@@ -67,10 +73,11 @@ public class User {
 
     /**
      * 带有详细信息的构造函数
-     * @param id 用户ID
-     * @param username 用户名
-     * @param nickname 昵称
-     * @param email 邮箱
+     * 
+     * @param id          用户ID
+     * @param username    用户名
+     * @param nickname    昵称
+     * @param email       邮箱
      * @param phoneNumber 手机号
      */
     public User(int id, String username, String nickname, String email, String phoneNumber) {
@@ -95,6 +102,7 @@ public class User {
 
     /**
      * 更改用户状态
+     * 
      * @param newStatus 新状态
      * @return 是否成功更改状态
      */
@@ -119,8 +127,9 @@ public class User {
 
     /**
      * 登录过程
-     * @param token 登录令牌
-     * @param expireDate 令牌过期时间
+     * 
+     * @param token        登录令牌
+     * @param expireDate   令牌过期时间
      * @param refreshToken 刷新令牌
      * @return 是否登录成功
      */
@@ -133,6 +142,7 @@ public class User {
 
     /**
      * 退出登录
+     * 
      * @return 是否成功退出
      */
     public boolean logout() {
@@ -144,6 +154,7 @@ public class User {
 
     /**
      * 检查令牌是否过期
+     * 
      * @return 是否过期
      */
     public boolean isTokenExpired() {
@@ -155,8 +166,9 @@ public class User {
 
     /**
      * 刷新令牌
-     * @param newToken 新令牌
-     * @param newExpireDate 新过期时间
+     * 
+     * @param newToken        新令牌
+     * @param newExpireDate   新过期时间
      * @param newRefreshToken 新刷新令牌
      */
     public void refreshToken(String newToken, Date newExpireDate, String newRefreshToken) {
@@ -167,6 +179,7 @@ public class User {
 
     /**
      * 更新用户昵称
+     * 
      * @param nickname 新昵称
      */
     public void updateNickname(String nickname) {
@@ -175,6 +188,7 @@ public class User {
 
     /**
      * 更新用户头像 (Bitmap 格式)
+     * 
      * @param avatar 新头像
      */
     public void updateAvatar(Bitmap avatar) {
@@ -183,6 +197,7 @@ public class User {
 
     /**
      * 更新用户头像 (URI 格式)
+     * 
      * @param avatarUri 新头像 URI
      */
     public void updateAvatar(Uri avatarUri) {
@@ -191,6 +206,7 @@ public class User {
 
     /**
      * 更新用户邮箱
+     * 
      * @param email 新邮箱
      */
     public void updateEmail(String email) {
@@ -199,6 +215,7 @@ public class User {
 
     /**
      * 更新用户手机号
+     * 
      * @param phoneNumber 新手机号
      */
     public void updatePhoneNumber(String phoneNumber) {
@@ -207,7 +224,8 @@ public class User {
 
     /**
      * 设置权限
-     * @param type 权限类型
+     * 
+     * @param type    权限类型
      * @param enabled 是否启用
      */
     public void setPermission(PermissionType type, boolean enabled) {
@@ -216,6 +234,7 @@ public class User {
 
     /**
      * 检查是否拥有权限
+     * 
      * @param type 权限类型
      * @return 是否拥有权限
      */
@@ -226,7 +245,8 @@ public class User {
 
     /**
      * 设置用户偏好
-     * @param key 偏好键
+     * 
+     * @param key   偏好键
      * @param value 偏好值
      */
     public void setPreference(String key, Object value) {
@@ -235,6 +255,7 @@ public class User {
 
     /**
      * 获取用户偏好
+     * 
      * @param key 偏好键
      * @return 偏好值
      */
@@ -244,6 +265,7 @@ public class User {
 
     /**
      * 获取用户完整信息的Map
+     * 
      * @return 用户信息Map
      */
     public Map<String, Object> getUserInfo() {
