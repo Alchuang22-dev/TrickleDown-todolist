@@ -1,7 +1,10 @@
 package controllers
 
 import (
+	"encoding/binary"
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 	
 	"github.com/Alchuang22-dev/backend/models"
@@ -24,7 +27,6 @@ func NewUserController(userRepo *repositories.UserRepository) *UserController {
 	}
 }
 
-// RegisterUser 注册新用户
 // RegisterUser 注册新用户
 func (c *UserController) RegisterUser(ctx *gin.Context) {
     var input struct {
@@ -65,14 +67,18 @@ func (c *UserController) RegisterUser(ctx *gin.Context) {
         return
     }
     
+    // 为了从ObjectID转换为uint，我们使用时间戳作为基础，确保为正数
+    // 这不是唯一方法，您可以根据需要调整
+    userIDForToken := uint(createdUser.ID.Timestamp().Unix())
+    
     // 生成JWT令牌
-    accessToken, err := utils.GenerateAccessToken(uint(createdUser.ID.Timestamp()))
+    accessToken, err := utils.GenerateAccessToken(userIDForToken)
     if err != nil {
         ctx.JSON(http.StatusInternalServerError, gin.H{"error": "生成访问令牌失败"})
         return
     }
     
-    refreshToken, err := utils.GenerateRefreshToken(uint(createdUser.ID.Timestamp()))
+    refreshToken, err := utils.GenerateRefreshToken(userIDForToken)
     if err != nil {
         ctx.JSON(http.StatusInternalServerError, gin.H{"error": "生成刷新令牌失败"})
         return
@@ -105,7 +111,6 @@ func (c *UserController) RegisterUser(ctx *gin.Context) {
 }
 
 // Login 用户登录
-// Login 用户登录
 func (c *UserController) Login(ctx *gin.Context) {
     var input struct {
         Username string `json:"username" binding:"required"`
@@ -131,14 +136,17 @@ func (c *UserController) Login(ctx *gin.Context) {
         return
     }
     
+    // 为了从ObjectID转换为uint，我们使用时间戳作为基础，确保为正数
+    userIDForToken := uint(user.ID.Timestamp().Unix())
+    
     // 生成JWT令牌
-    accessToken, err := utils.GenerateAccessToken(uint(user.ID.Timestamp()))
+    accessToken, err := utils.GenerateAccessToken(userIDForToken)
     if err != nil {
         ctx.JSON(http.StatusInternalServerError, gin.H{"error": "生成访问令牌失败"})
         return
     }
     
-    refreshToken, err := utils.GenerateRefreshToken(uint(user.ID.Timestamp()))
+    refreshToken, err := utils.GenerateRefreshToken(userIDForToken)
     if err != nil {
         ctx.JSON(http.StatusInternalServerError, gin.H{"error": "生成刷新令牌失败"})
         return
@@ -174,6 +182,7 @@ func (c *UserController) Login(ctx *gin.Context) {
         },
     })
 }
+
 
 // CheckAuth 检查用户认证状态
 func (c *UserController) CheckAuth(ctx *gin.Context) {
@@ -524,7 +533,6 @@ func (c *UserController) RemoveUserTask(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"message": "Task removed from user"})
 }
 
-// RefreshAccessToken 刷新访问令牌
 func (c *UserController) RefreshAccessToken(ctx *gin.Context) {
 	var input struct {
 		RefreshToken string `json:"refreshToken"`
@@ -544,14 +552,14 @@ func (c *UserController) RefreshAccessToken(ctx *gin.Context) {
 	
 	// 从令牌中获取用户ID
 	userIDStr := claims.Subject
-	userIDInt, err := primitive.ParseInt(userIDStr, 10, 64)
+	userIDInt, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID in token"})
 		return
 	}
 	
-	// 这里需要将int64转换回ObjectID，这只是一个示例方法，实际应根据您的ID生成策略调整
-	// 假设ObjectID的时间戳部分与userID相关
+	// 这里需要将int64转换回ObjectID
+	// 我们将使用二进制编码来构建一个ObjectID
 	objectIDBytes := make([]byte, 12)
 	binary.BigEndian.PutUint32(objectIDBytes[0:4], uint32(userIDInt))
 	objectID := primitive.ObjectID(objectIDBytes)
@@ -578,7 +586,8 @@ func (c *UserController) RefreshAccessToken(ctx *gin.Context) {
 	
 	// 更新用户的token信息
 	accessTokenDuration := 24 * time.Hour // 设置为24小时
-	user.RefreshToken(accessToken, time.Now().Add(accessTokenDuration), refreshToken)
+	// 注意: 这里使用了RefreshUserToken方法，确保您已经修改了方法名
+	user.RefreshUserToken(accessToken, time.Now().Add(accessTokenDuration), refreshToken)
 	err = c.userRepo.Update(user)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user token"})
