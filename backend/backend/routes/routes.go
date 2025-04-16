@@ -1,9 +1,9 @@
 package routes
 
 import (
-    "your-project/controllers"
-    "your-project/middlewares"
-    "your-project/repositories"
+    "github.com/Alchuang22-dev/backend/controllers"
+    "github.com/Alchuang22-dev/backend/middlewares"
+    "github.com/Alchuang22-dev/backend/repositories"
     
     "github.com/gin-gonic/gin"
     "go.mongodb.org/mongo-driver/mongo"

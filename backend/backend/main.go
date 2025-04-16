@@ -6,7 +6,7 @@ import (
     "os"
     "time"
     
-    "your-project/routes"
+    "github.com/Alchuang22-dev/backend/routes"
     
     "github.com/gin-gonic/gin"
     "go.mongodb.org/mongo-driver/mongo"
