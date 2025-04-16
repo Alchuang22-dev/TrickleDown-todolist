@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"time"
 	
-	"your-project/models"
-	"your-project/repositories"
-	"your-project/utils"
+	"github.com/Alchuang22-dev/backend/models"
+	"github.com/Alchuang22-dev/backend/repositories"
+	"github.com/Alchuang22-dev/backend/utils"
 	
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"

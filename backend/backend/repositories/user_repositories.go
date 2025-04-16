@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 	
-	"your-project/models"
-	"your-project/utils"
+	"github.com/Alchuang22-dev/backend/models"
+	"github.com/Alchuang22-dev/backend/utils"
 	
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
