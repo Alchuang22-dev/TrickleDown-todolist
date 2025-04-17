@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:tools="http://schemas.android.com/tools"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/menu_all"
+        android:title="全部事项"
+        tools:ignore="HardcodedText" />
+    <item
+        android:id="@+id/menu_unfinished"
+        android:title="未完成事项"
+        tools:ignore="HardcodedText" />
+    <item
+        android:id="@+id/menu_important"
+        android:title="重要事项"
+        tools:ignore="HardcodedText" />
+    <item
+        android:id="@+id/menu_by_time"
+        android:title="按时间筛选"
+        tools:ignore="HardcodedText" />
+    <item
+        android:id="@+id/menu_by_category"
+        android:title="按类别筛选"
+        tools:ignore="HardcodedText" />
+</menu>
