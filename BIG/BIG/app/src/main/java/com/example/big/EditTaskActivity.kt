@@ -64,7 +64,12 @@ class EditTaskActivity : AppCompatActivity() {
         // 获取当前编辑的任务ID
         taskId = intent.getIntExtra("task_id", -1)
         if (taskId == -1) {
-            Toast.makeText(this, "任务ID无效", Toast.LENGTH_SHORT).show()
+            // Toast.makeText(this, "任务ID无效", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                /* context = */ this,   // 或 holder.itemView.context 等
+                /* text     = */ "任务 ID: ${taskId}",
+                /* duration = */ Toast.LENGTH_SHORT
+            ).show()
             finish()
             return
         }
