@@ -1,0 +1,48 @@
+version: '3.8'
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: todo_mongodb_container
+    restart: always
+    ports:
+      - "27018:27017"  # 使用不同的端口，避免与现有MongoDB冲突
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: mango12345678
+      MONGO_INITDB_DATABASE: Trickledown
+    volumes:
+      - todo_mongodb_data:/data/db
+    networks:
+      - todo_backend
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh mongodb://root:mango12345678@localhost:27017/admin --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  todo-app:  # 这是docker-compose中的服务名，要与nginx.conf中的proxy_pass匹配
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: todo_api_container
+    restart: always
+    environment:
+      - MONGO_URI=mongodb://root:mango12345678@mongodb:27017/admin
+      - MONGO_DB=Trickledown
+      - TZ=Asia/Shanghai 
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./upload:/app/upload
+    networks:
+      - todo_backend
+      - nginx_network  # 确保与nginx容器在同一网络
+
+volumes:
+  todo_mongodb_data:
+
+networks:
+  todo_backend:
+  nginx_network:
+    external: true  # 使用现有的nginx网络
