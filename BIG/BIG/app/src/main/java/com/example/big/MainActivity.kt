@@ -1,41 +1,88 @@
 package com.example.big
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.view.View
-import android.widget.ImageView
-import androidx.appcompat.app.AppCompatActivity
-import androidx.cardview.widget.CardView
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.example.big.ProfileActivity
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.util.Calendar
+import java.util.Date
 
-class MainActivity : AppCompatActivity() {
-    private var profileImageView: ImageView? = null
-    private var importantTasksRecyclerView: RecyclerView? = null
-
+class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
 
-        // 初始化视图
-        initViews()
+        val importantTasks = createSampleTasks()
 
-        // 设置重要事项列表
-        setupImportantTasksList()
+        setContent {
+            MaterialTheme {
+                MainScreen(
+                    importantTasks = importantTasks,
+                    onNavigate = { activityClass ->
+                        startActivity(Intent(this, activityClass))
+                    },
+                    onTaskClick = { task ->
+                        val intent = Intent(this, EditTaskActivity::class.java).apply {
+                            putExtra("task_id", task.id)
 
-        // 设置点击事件
-        setupClickListeners()
+                        }
+                        // 弹出包含 ID 的 Toast
+                        Toast.makeText(
+                            /* context = */ this@MainActivity,   // 或 holder.itemView.context 等
+                            /* text     = */ "任务 ID: ${task.id}",
+                            /* duration = */ Toast.LENGTH_SHORT
+                        ).show()
+                        startActivity(intent)
+                    }
+                )
+            }
+        }
     }
 
-    private fun initViews() {
-        profileImageView = findViewById(R.id.profile_image)
-        importantTasksRecyclerView = findViewById(R.id.important_tasks_recyclerview)
-    }
-
-    private fun setupImportantTasksList() {
-        // 创建一个假的任务列表
+    private fun createSampleTasks(): List<Task> {
         val importantTasks: MutableList<Task> = ArrayList()
         val cal = Calendar.getInstance()
 
@@ -61,76 +108,230 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
-        // 设置RecyclerView
-        val taskAdapter = TaskAdapter(importantTasks, this)
-        importantTasksRecyclerView!!.layoutManager = LinearLayoutManager(this)
-        importantTasksRecyclerView!!.adapter = taskAdapter
+        return importantTasks
     }
+}
 
-    private fun setupClickListeners() {
-        // 头像点击事件 - 跳转到个人信息页面
-        profileImageView!!.setOnClickListener { v: View? ->
-            val intent = Intent(
-                this@MainActivity,
-                ProfileActivity::class.java
-            )
-            startActivity(intent)
-        }
+// 用于模拟原来的Task类
 
-        // 今日入口点击事件
-        val todayEntryCard = findViewById<CardView>(R.id.today_entry)
-        todayEntryCard.setOnClickListener { v: View? ->
-            val intent = Intent(
-                this@MainActivity,
-                TodayTasksActivity::class.java
-            )
-            startActivity(intent)
-        }
+@Composable
+fun HeaderSection(onProfileClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = "我的待办",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF333333)
+        )
 
-        // 计划入口点击事件
-        val planEntryCard = findViewById<CardView>(R.id.plan_entry)
-        planEntryCard.setOnClickListener { v: View? ->
-            val intent = Intent(
-                this@MainActivity,
-                KanbanViewActivity::class.java
-            )
-            startActivity(intent)
-        }
+        Image(
+            painter = painterResource(id = R.drawable.default_avatar),
+            contentDescription = "个人头像",
+            modifier = Modifier
+                .size(50.dp)
+                .clip(CircleShape)
+                .border(2.dp, Color.White, CircleShape)
+                .clickable(onClick = onProfileClick)
+        )
+    }
+}
 
-        // 全部入口点击事件
-        val allEntryCard = findViewById<CardView>(R.id.all_entry)
-        allEntryCard.setOnClickListener { v: View? ->
-            val intent = Intent(
-                this@MainActivity,
-                ListViewActivity::class.java
-            )
-            startActivity(intent)
-        }
 
-        // 统计入口点击事件
-        val statsEntryCard = findViewById<CardView>(R.id.stats_entry)
-        statsEntryCard.setOnClickListener { v: View? ->
-            val intent = Intent(
-                this@MainActivity,
-                StatisticsActivity::class.java
-            )
-            startActivity(intent)
-        }
+@Composable
+fun MainScreen(
+    importantTasks: List<Task>,
+    onNavigate: (Class<out Activity>) -> Unit,
+    onTaskClick: (Task) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF5F5F5))
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        HeaderSection(onProfileClick = { onNavigate(ProfileActivity::class.java) })
 
-        // 添加新事项按钮点击事件
-        val addNewTaskButton = findViewById<CardView>(R.id.add_new_task_button)
-        addNewTaskButton.setOnClickListener { v: View? ->
-            val intent = Intent(
-                this@MainActivity,
-                AddTaskActivity::class.java
+        Spacer(modifier = Modifier.height(24.dp))
+
+        EntriesGrid(onNavigate = onNavigate)
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        AddTaskButton(onClick = { onNavigate(AddTaskActivity::class.java) })
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        ImportantTasksSection(
+            tasks = importantTasks,
+            onTaskClick = onTaskClick
+        )
+    }
+}
+
+@Composable
+fun EntriesGrid(onNavigate: (Class<out Activity>) -> Unit) {
+    val entries = listOf(
+        Triple("今日", Color(0xFF4CAF50), TodayTasksActivity::class.java),
+        Triple("计划", Color(0xFF2196F3), KanbanViewActivity::class.java),
+        Triple("全部", Color(0xFFFF9800), ListViewActivity::class.java),
+        Triple("统计", Color(0xFF9C27B0), StatisticsActivity::class.java)
+    )
+
+    // 使用固定高度而不是自适应高度
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        // 修改为200dp高度，与原XML更匹配
+        modifier = Modifier.height(200.dp),
+        contentPadding = PaddingValues(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(entries) { (label, color, destination) ->
+            EntryCard(
+                title = label,
+                backgroundColor = color,
+                onClick = { onNavigate(destination) }
             )
-            startActivity(intent)
         }
     }
+}
 
-    override fun onResume() {
-        super.onResume()
-        // 如果从ProfileActivity返回，可能需要刷新头像
-        // 这里可以添加从SharedPreferences或其他存储加载用户头像的代码
+@Composable
+fun EntryCard(
+    title: String,
+    backgroundColor: Color,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            // 确保卡片是正方形
+            .height(80.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+fun AddTaskButton(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(60.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFE91E63))
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "添加新事项",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+fun ImportantTasksSection(
+    tasks: List<Task>,
+    onTaskClick: (Task) -> Unit // 添加任务点击回调
+) {
+    Column {
+        Text(
+            text = "今日重要事项",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF333333),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            LazyColumn(
+                modifier = Modifier.padding(8.dp)
+            ) {
+                items(tasks) { task ->
+                    TaskItem(
+                        task = task,
+                        onClick = { onTaskClick(task) } // 传递点击事件
+                    )
+                    if (tasks.indexOf(task) < tasks.size - 1) {
+                        Divider()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TaskItem(
+    task: Task,
+    onClick: () -> Unit // 添加点击回调
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick) // 添加点击事件
+            .padding(vertical = 12.dp, horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = task.title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = task.timeRange,
+                fontSize = 14.sp,
+                color = Color.Gray
+            )
+            task.description?.let {
+                Text(
+                    text = it,
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+
+        Icon(
+            imageVector = Icons.Default.KeyboardArrowRight,
+            contentDescription = "查看详情",
+            tint = Color.Gray
+        )
     }
 }
