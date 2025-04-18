@@ -161,46 +161,767 @@
 
 ### 1. 前端模块
 
+我们的前端主要使用Kotlin语言进行设计，利用Jetpack实现数据交流和后端通信。
+
 - UI组件架构
   - **Jetpack Compose** - Google推荐的现代声明式UI工具包，能轻松实现拖拽功能和复杂动画
-  - **Material Design 3** - 提供美观一致的UI组件和设计语言
-  - **Chakra UI**？
-
 - 状态管理方案
   - **Kotlin Flow/StateFlow** - 响应式编程处理应用状态（现阶段我们已经转向Java开发）
   - **LiveData** - 生命周期感知的数据持有者类
-
 - 路由导航设计
   - **Jetpack Navigation** - 简化Fragment间导航，支持安全参数传递
-
 - 本地存储设计
-  - **DataStore**？
-
+  - **DataStore**
 - 前端框架
-  - **React**?
+  - 如时间资源允许，可能采用**React**，目前仍直接与后端进行数据通信
 
 
 ### 2. 后端模块
 
 - 数据模型设计
   - 我们目前只完成了`Task`类和`User`类以及包含的方法
-
 - API接口设计
-  - 请参见我们的Apifox文档
-
+  - 请参见我们的Apifox文档[TrickleDown Api](https://app.apifox.com/project/6233887)
 - 数据库结构
-  - **MongoDB**
-
+  - 我们目前使用**MongoDB**作为数据库
 - 服务器架构
-  - 我们正在使用的服务器后端为Ubuntu上的**Gin/Gorm**架构
-  - 视情况使用**Firebase**
-  - **Airtable**？
+  - 我们正在使用的服务器后端为Ubuntu上的**Gin/Gorm**架构www.todo.dechelper.com
 
 
 ### 3. 数据流设计
 
-- 前后端数据交互流程
-- 数据处理逻辑
+我们将以User类为例说明前后端之间的数据流设计。
+
+#### 系统概述
+
+本文档描述了基于Go后端和Kotlin/Compose前端的待办事项应用（Todo App）的前后端交互流程和数据流设计。应用采用RESTful API架构，使用JWT进行身份验证，MongoDB作为数据存储。
+
+#### 架构图
+
+```
+┌─────────────────┐      HTTP/REST      ┌─────────────────┐      ┌─────────────────┐
+│                 │  Request/Response   │                     │      │                 │
+│  Kotlin/Compose │◄─────────────────►│    Go Backend    │◄────►│    MongoDB      │
+│  Frontend       │                     │                             │      │                 │
+└─────────────────┘                               └─────────────────┘      └─────────────────┘
+       ▲                                       │
+       │                                       │
+       └───────────────────────────────────────┘
+                 JWT Authentication
+```
+
+#### 认证流程
+
+##### 1. 用户注册
+
+```mermaid
+sequenceDiagram
+    Frontend->>+Backend: POST /api/register {username, password, ...}
+    Backend->>+MongoDB: 检查用户名是否存在
+    MongoDB-->>-Backend: 返回结果
+    Backend->>Backend: 哈希密码
+    Backend->>+MongoDB: 创建新用户
+    MongoDB-->>-Backend: 返回用户数据
+    Backend->>Backend: 生成JWT令牌 (access & refresh)
+    Backend-->>-Frontend: 返回用户信息和令牌
+    Frontend->>Frontend: 存储令牌和用户信息
+```
+
+###### 数据流：
+
+**请求体：**
+
+```json
+{
+  "username": "user123",
+  "password": "securepassword",
+  "nickname": "Cool User",
+  "email": "user@example.com",
+  "phoneNumber": "1234567890"
+}
+```
+
+**响应体：**
+
+```
+{
+  "message": "注册成功",
+  "user": {
+    "id": "6071a2d35c6fe22ae123456",
+    "username": "user123",
+    "nickname": "Cool User",
+    "email": "user@example.com",
+    "status": "REGISTERED"
+  },
+  "token": {
+    "accessToken": "eyJhbGciOiJIUzI1...",
+    "refreshToken": "eyJhbGciOiJIUzI1...",
+    "expiresIn": 86400
+  }
+}
+```
+
+##### 2. 用户登录
+
+```mermaid
+sequenceDiagram
+    Frontend->>+Backend: POST /api/login {username, password}
+    Backend->>+MongoDB: 查找用户
+    MongoDB-->>-Backend: 返回用户数据
+    Backend->>Backend: 验证密码
+    Backend->>Backend: 生成JWT令牌 (access & refresh)
+    Backend->>+MongoDB: 更新用户登录状态
+    MongoDB-->>-Backend: 确认更新
+    Backend-->>-Frontend: 返回用户信息和令牌
+    Frontend->>Frontend: 存储令牌和用户信息
+```
+
+###### 数据流：
+
+**请求体：**
+
+json
+
+复制
+
+```
+{
+  "username": "user123",
+  "password": "securepassword"
+}
+```
+
+**响应体：**
+
+json
+
+复制
+
+```
+{
+  "message": "登录成功",
+  "user": {
+    "id": "6071a2d35c6fe22ae123456",
+    "username": "user123",
+    "nickname": "Cool User",
+    "email": "user@example.com",
+    "phoneNumber": "1234567890",
+    "avatarURL": "https://example.com/avatar.jpg",
+    "status": "LOGGED_IN",
+    "createdDate": "2023-04-10T12:00:00Z",
+    "lastLoginDate": "2023-04-15T09:30:00Z",
+    "taskIds": ["6071a2d35c6fe22ae654321", "6071a2d35c6fe22ae654322"]
+  },
+  "token": {
+    "accessToken": "eyJhbGciOiJIUzI1...",
+    "refreshToken": "eyJhbGciOiJIUzI1...",
+    "expiresIn": 86400
+  }
+}
+```
+
+##### 3. 令牌刷新
+
+```mermaid
+sequenceDiagram
+    Frontend->>+Backend: POST /api/refresh {refreshToken}
+    Backend->>Backend: 验证刷新令牌
+    Backend->>Backend: 生成新的访问令牌
+    Backend->>+MongoDB: 更新用户令牌
+    MongoDB-->>-Backend: 确认更新
+    Backend-->>-Frontend: 返回新令牌
+    Frontend->>Frontend: 更新存储的令牌
+```
+
+###### 数据流：
+
+**请求体：**
+
+json
+
+复制
+
+```
+{
+  "refreshToken": "eyJhbGciOiJIUzI1..."
+}
+```
+
+**响应体：**
+
+json
+
+复制
+
+```
+{
+  "token": {
+    "accessToken": "eyJhbGciOiJIUzI1...",
+    "refreshToken": "eyJhbGciOiJIUzI1...",
+    "expiresIn": 86400
+  }
+}
+```
+
+### 4. 用户登出
+
+```mermaid
+sequenceDiagram
+    Frontend->>+Backend: POST /api/logout
+    Note over Frontend,Backend: 请求头包含 Authorization: Bearer {token}
+    Backend->>Backend: 验证令牌
+    Backend->>+MongoDB: 更新用户状态为登出
+    MongoDB-->>-Backend: 确认更新
+    Backend-->>-Frontend: 返回登出成功消息
+    Frontend->>Frontend: 清除本地令牌和用户信息
+```
+
+###### 数据流：
+
+**响应体：**
+
+```json
+{
+  "message": "Successfully logged out"
+}
+```
+
+#### 用户资源管理
+
+##### 1. 获取用户信息
+
+```mermaid
+sequenceDiagram
+    Frontend->>+Backend: GET /api/users/{id}
+    Note over Frontend,Backend: 请求头包含 Authorization: Bearer {token}
+    Backend->>Backend: 验证令牌
+    Backend->>+MongoDB: 查询用户信息
+    MongoDB-->>-Backend: 返回用户数据
+    Backend-->>-Frontend: 返回用户信息
+```
+
+###### 数据流：
+
+**响应体：**
+
+```json
+{
+  "id": "6071a2d35c6fe22ae123456",
+  "username": "user123",
+  "nickname": "Cool User",
+  "email": "user@example.com",
+  "phoneNumber": "1234567890",
+  "avatarURL": "https://example.com/avatar.jpg",
+  "status": "LOGGED_IN",
+  "createdDate": "2023-04-10T12:00:00Z",
+  "lastLoginDate": "2023-04-15T09:30:00Z",
+  "permissions": {
+    "ALARM": false,
+    "NOTIFICATION": true,
+    "LOCATION": false,
+    "STORAGE": true,
+    "CALENDAR": false,
+    "CONTACTS": false
+  },
+  "preferences": {
+    "theme": "dark",
+    "language": "zh-CN",
+    "notificationEnabled": true
+  },
+  "taskIds": ["6071a2d35c6fe22ae654321", "6071a2d35c6fe22ae654322"]
+}
+```
+
+###### 2. 更新用户信息
+
+```mermaid
+sequenceDiagram
+    Frontend->>+Backend: PUT /api/users/{id}
+    Note over Frontend,Backend: 请求头包含 Authorization: Bearer {token}
+    Backend->>Backend: 验证令牌
+    Backend->>+MongoDB: 更新用户信息
+    MongoDB-->>-Backend: 确认更新
+    Backend-->>-Frontend: 返回更新后的用户信息
+```
+
+###### 数据流：
+
+**请求体：**
+
+```json
+{
+  "nickname": "Super User",
+  "email": "newuser@example.com",
+  "avatarURL": "https://example.com/new-avatar.jpg"
+}
+```
+
+**响应体：**
+ 与获取用户信息响应相同，但包含更新后的数据。
+
+##### 3. 更新用户权限
+
+```mermaid
+sequenceDiagram
+    Frontend->>+Backend: PUT /api/users/{id}/permissions
+    Note over Frontend,Backend: 请求头包含 Authorization: Bearer {token}
+    Backend->>Backend: 验证令牌
+    Backend->>+MongoDB: 更新用户权限
+    MongoDB-->>-Backend: 确认更新
+    Backend-->>-Frontend: 返回成功消息
+```
+
+###### 数据流：
+
+**请求体：**
+
+```json
+{
+  "permissionType": "NOTIFICATION",
+  "enabled": true
+}
+```
+
+**响应体：**
+
+```json
+{
+  "message": "Permission updated"
+}
+```
+
+#### 任务管理
+
+##### 1. 获取用户任务列表
+
+```mermaid
+sequenceDiagram
+    Frontend->>+Backend: GET /api/users/{id}/tasks
+    Note over Frontend,Backend: 请求头包含 Authorization: Bearer {token}
+    Backend->>Backend: 验证令牌
+    Backend->>+MongoDB: 查询用户任务
+    MongoDB-->>-Backend: 返回任务ID列表
+    Backend-->>-Frontend: 返回任务ID列表
+```
+
+###### 数据流：
+
+**响应体：**
+
+```json
+{
+  "tasks": ["6071a2d35c6fe22ae654321", "6071a2d35c6fe22ae654322"]
+}
+```
+
+##### 2. 添加任务到用户
+
+```mermaid
+sequenceDiagram
+    Frontend->>+Backend: POST /api/users/{id}/tasks
+    Note over Frontend,Backend: 请求头包含 Authorization: Bearer {token}
+    Backend->>Backend: 验证令牌
+    Backend->>+MongoDB: 添加任务ID到用户
+    MongoDB-->>-Backend: 确认更新
+    Backend-->>-Frontend: 返回成功消息
+```
+
+#### 数据流：
+
+**请求体：**
+
+```json
+{
+  "taskId": "6071a2d35c6fe22ae654323"
+}
+```
+
+**响应体：**
+
+```json
+{
+  "message": "Task added to user"
+}
+```
+
+##### 3. 从用户移除任务
+
+```mermaid
+sequenceDiagram
+    Frontend->>+Backend: DELETE /api/users/{id}/tasks
+    Note over Frontend,Backend: 请求头包含 Authorization: Bearer {token}
+    Backend->>Backend: 验证令牌
+    Backend->>+MongoDB: 从用户移除任务ID
+    MongoDB-->>-Backend: 确认更新
+    Backend-->>-Frontend: 返回成功消息
+```
+
+###### 数据流：
+
+**请求体：**
+
+json
+
+复制
+
+```
+{
+  "taskId": "6071a2d35c6fe22ae654323"
+}
+```
+
+**响应体：**
+
+json
+
+复制
+
+```
+{
+  "message": "Task removed from user"
+}
+```
+
+#### 前端实现(Kotlin/Compose)
+
+##### 1. API客户端
+
+使用Kotlin的Retrofit库创建API客户端：
+
+```kotlin
+// API接口定义
+interface TodoApiService {
+    @POST("api/register")
+    suspend fun registerUser(@Body registerRequest: RegisterRequest): Response<AuthResponse>
+    
+    @POST("api/login")
+    suspend fun loginUser(@Body loginRequest: LoginRequest): Response<AuthResponse>
+    
+    @POST("api/refresh")
+    suspend fun refreshToken(@Body refreshRequest: RefreshRequest): Response<TokenResponse>
+    
+    @POST("api/logout")
+    suspend fun logout(@Header("Authorization") token: String): Response<MessageResponse>
+    
+    @GET("api/users/{id}")
+    suspend fun getUserById(@Path("id") userId: String, @Header("Authorization") token: String): Response<User>
+    
+    // 其他API方法...
+}
+
+// 创建Retrofit实例
+val retrofit = Retrofit.Builder()
+    .baseUrl("https://your-api-server.com/")
+    .addConverterFactory(GsonConverterFactory.create())
+    .build()
+
+val apiService = retrofit.create(TodoApiService::class.java)
+```
+
+##### 2. 数据模型
+
+定义与后端对应的数据模型：
+
+```kotlin
+// 用户模型
+data class User(
+    val id: String,
+    val username: String,
+    val nickname: String,
+    val email: String,
+    val phoneNumber: String?,
+    val avatarURL: String?,
+    val status: String,
+    val createdDate: String,
+    val lastLoginDate: String?,
+    val permissions: Map<String, Boolean>,
+    val preferences: Map<String, Any>,
+    val taskIds: List<String>
+)
+
+// 认证响应
+data class AuthResponse(
+    val message: String,
+    val user: User,
+    val token: TokenResponse
+)
+
+data class TokenResponse(
+    val accessToken: String,
+    val refreshToken: String,
+    val expiresIn: Long
+)
+
+// 请求模型
+data class RegisterRequest(
+    val username: String,
+    val password: String,
+    val nickname: String?,
+    val email: String?,
+    val phoneNumber: String?
+)
+
+data class LoginRequest(
+    val username: String,
+    val password: String
+)
+
+data class RefreshRequest(
+    val refreshToken: String
+)
+
+// 其他模型...
+```
+
+##### 3. 令牌管理
+
+```kotlin
+class TokenManager(private val context: Context) {
+    private val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
+    
+    fun saveTokens(accessToken: String, refreshToken: String, expiresIn: Long) {
+        with(prefs.edit()) {
+            putString("access_token", accessToken)
+            putString("refresh_token", refreshToken)
+            putLong("expires_at", System.currentTimeMillis() + expiresIn * 1000)
+            apply()
+        }
+    }
+    
+    fun getAccessToken(): String? = prefs.getString("access_token", null)
+    
+    fun getRefreshToken(): String? = prefs.getString("refresh_token", null)
+    
+    fun isTokenExpired(): Boolean {
+        val expiresAt = prefs.getLong("expires_at", 0)
+        return System.currentTimeMillis() > expiresAt
+    }
+    
+    fun clearTokens() {
+        prefs.edit().clear().apply()
+    }
+    
+    fun getAuthHeader(): String? {
+        val token = getAccessToken()
+        return if (token != null) "Bearer $token" else null
+    }
+}
+```
+
+##### 4. 存储库模式
+
+```kotlin
+class UserRepository(
+    private val apiService: TodoApiService,
+    private val tokenManager: TokenManager
+) {
+    suspend fun registerUser(username: String, password: String, nickname: String? = null,
+                             email: String? = null, phoneNumber: String? = null): Result<User> {
+        return try {
+            val request = RegisterRequest(username, password, nickname, email, phoneNumber)
+            val response = apiService.registerUser(request)
+            
+            if (response.isSuccessful) {
+                response.body()?.let { authResponse ->
+                    tokenManager.saveTokens(
+                        authResponse.token.accessToken,
+                        authResponse.token.refreshToken,
+                        authResponse.token.expiresIn
+                    )
+                    Result.success(authResponse.user)
+                } ?: Result.failure(Exception("Empty response body"))
+            } else {
+                Result.failure(Exception(response.errorBody()?.string() ?: "Unknown error"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    suspend fun loginUser(username: String, password: String): Result<User> {
+        // 类似registerUser的实现
+    }
+    
+    suspend fun refreshTokenIfNeeded(): Boolean {
+        if (tokenManager.isTokenExpired()) {
+            val refreshToken = tokenManager.getRefreshToken() ?: return false
+            
+            try {
+                val response = apiService.refreshToken(RefreshRequest(refreshToken))
+                if (response.isSuccessful) {
+                    response.body()?.let { tokenResponse ->
+                        tokenManager.saveTokens(
+                            tokenResponse.accessToken,
+                            tokenResponse.refreshToken,
+                            tokenResponse.expiresIn
+                        )
+                        return true
+                    }
+                }
+                return false
+            } catch (e: Exception) {
+                return false
+            }
+        }
+        return true
+    }
+    
+    suspend fun getUserById(userId: String): Result<User> {
+        if (!refreshTokenIfNeeded()) {
+            return Result.failure(Exception("Authentication required"))
+        }
+        
+        return try {
+            val authHeader = tokenManager.getAuthHeader() ?: 
+                return Result.failure(Exception("No auth token"))
+                
+            val response = apiService.getUserById(userId, authHeader)
+            
+            if (response.isSuccessful) {
+                response.body()?.let { user ->
+                    Result.success(user)
+                } ?: Result.failure(Exception("Empty response body"))
+            } else {
+                Result.failure(Exception(response.errorBody()?.string() ?: "Unknown error"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    // 其他用户相关操作...
+}
+```
+
+##### 5. ViewModel集成
+
+```kotlin
+class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
+    
+    private val _user = MutableStateFlow<User?>(null)
+    val user: StateFlow<User?> = _user
+    
+    private val _loading = MutableStateFlow(false)
+    val loading: StateFlow<Boolean> = _loading
+    
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error
+    
+    fun register(username: String, password: String, nickname: String? = null,
+                 email: String? = null, phoneNumber: String? = null) {
+        viewModelScope.launch {
+            _loading.value = true
+            _error.value = null
+            
+            userRepository.registerUser(username, password, nickname, email, phoneNumber)
+                .onSuccess { user ->
+                    _user.value = user
+                }
+                .onFailure { exception ->
+                    _error.value = exception.message
+                }
+            
+            _loading.value = false
+        }
+    }
+    
+    fun login(username: String, password: String) {
+        // 类似register的实现
+    }
+    
+    fun logout() {
+        // 实现用户登出
+    }
+    
+    fun getUserById(userId: String) {
+        // 获取用户详情
+    }
+    
+    // 其他用户操作...
+}
+```
+
+##### 6. Compose UI集成
+
+```kotlin
+@Composable
+fun LoginScreen(viewModel: UserViewModel, onLoginSuccess: () -> Unit) {
+    val userState by viewModel.user.collectAsState()
+    val loadingState by viewModel.loading.collectAsState()
+    val errorState by viewModel.error.collectAsState()
+    
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    
+    LaunchedEffect(userState) {
+        if (userState != null) {
+            onLoginSuccess()
+        }
+    }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "登录",
+            style = MaterialTheme.typography.h4,
+            modifier = Modifier.padding(bottom = 32.dp)
+        )
+        
+        OutlinedTextField(
+            value = username,
+            onValueChange = { username = it },
+            label = { Text("用户名") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("密码") },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        if (errorState != null) {
+            Text(
+                text = errorState!!,
+                color = MaterialTheme.colors.error,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
+        
+        Button(
+            onClick = { viewModel.login(username, password) },
+            enabled = !loadingState && username.isNotEmpty() && password.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            if (loadingState) {
+                CircularProgressIndicator(
+                    color = MaterialTheme.colors.onPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+            } else {
+                Text("登录")
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        TextButton(onClick = { /* 跳转到注册页面 */ }) {
+            Text("没有账号？点击注册")
+        }
+    }
+}
+```
 
 ## 六、当前遇到的问题与解决方案
 
@@ -209,28 +930,47 @@
 - 多设备数据同步问题
 - 离线使用与数据一致性问题
 - 解决方案与进展
+  - 考虑添加WebSocket支持
+
 
 ### 2. 开发过程中的挑战
 
 - 用户体验优化问题
 - 性能优化问题
 - 解决方案与进展
+  - 添加用户行为分析，帮助改进应用体验
+  - 考虑添加AI api接口
+
 
 ### 3. 可能遇到的问题
 
 - 数据安全与隐私保护
 - 系统扩展性考虑
 - 预防措施与应对方案
+  - 暂无应对方案
+
 
 ## 七、下一阶段工作计划
 
 - 功能开发计划
+  - **第9周**：前框框架的kotlin/compose搭建；后端框架部署
+  - **第10周**：User部分和Task部分基本功能的前后端连接
+  - **第11周**：AI等辅助功能和复杂图形化界面最终实现
+
 - 测试计划
+  - **第12周**：基于测试的敏捷开发
+
 - 发布时间表
+  - **第13周**：最终发布
+
 
 ## 八、附录
 
 - 技术栈说明
+  - 前端：Kotlin/Jetpack Compose
+  - 后端：Go/Gin+Gorm, with Docker
 - 开发环境配置
-- API文档
-- 数据库设计文档
+  - 前端：Android Studio/Ubuntu 24.04/Windows 11/Android 13
+  - 后端：Docker/Ubuntu 24.04
+- API文档：[TrickleDown Api](https://app.apifox.com/project/6233887)
+- 数据库设计文档：本项目数据库较为简单，且采用非关系型数据库，因此不设置文档。
