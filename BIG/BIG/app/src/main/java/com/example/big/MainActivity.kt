@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -40,6 +39,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,8 +52,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.big.ui.AuthScreen
+import com.example.big.viewmodel.AuthViewModel
 import java.util.Calendar
-import java.util.Date
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -59,7 +65,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                MainScreen(
+                App(
                     importantTasks = importantTasks,
                     onNavigate = { activityClass ->
                         startActivity(Intent(this, activityClass))
@@ -67,13 +73,12 @@ class MainActivity : ComponentActivity() {
                     onTaskClick = { task ->
                         val intent = Intent(this, EditTaskActivity::class.java).apply {
                             putExtra("task_id", task.id)
-
                         }
                         // 弹出包含 ID 的 Toast
                         Toast.makeText(
-                            /* context = */ this@MainActivity,   // 或 holder.itemView.context 等
-                            /* text     = */ "任务 ID: ${task.id}",
-                            /* duration = */ Toast.LENGTH_SHORT
+                            this@MainActivity,
+                            "任务 ID: ${task.id}",
+                            Toast.LENGTH_SHORT
                         ).show()
                         startActivity(intent)
                     }
@@ -112,7 +117,35 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// 用于模拟原来的Task类
+@Composable
+fun App(
+    importantTasks: List<Task>,
+    onNavigate: (Class<out Activity>) -> Unit,
+    onTaskClick: (Task) -> Unit
+) {
+    // 使用 AuthViewModel 来管理认证状态
+    val authViewModel: AuthViewModel = viewModel()
+    val currentUser by authViewModel.currentUser.observeAsState()
+
+    // 如果用户未登录，显示登录/注册界面
+    if (currentUser == null) {
+        AuthScreen(
+            onAuthSuccess = {
+                // 登录成功后不需要额外操作，因为 AuthViewModel 会更新 currentUser
+            }
+        )
+    } else {
+        // 用户已登录，显示主界面
+        MainScreen(
+            importantTasks = importantTasks,
+            onNavigate = onNavigate,
+            onTaskClick = onTaskClick,
+            onLogout = {
+                authViewModel.logout()
+            }
+        )
+    }
+}
 
 @Composable
 fun HeaderSection(onProfileClick: () -> Unit) {
@@ -140,12 +173,12 @@ fun HeaderSection(onProfileClick: () -> Unit) {
     }
 }
 
-
 @Composable
 fun MainScreen(
     importantTasks: List<Task>,
     onNavigate: (Class<out Activity>) -> Unit,
-    onTaskClick: (Task) -> Unit
+    onTaskClick: (Task) -> Unit,
+    onLogout: () -> Unit  // 添加登出功能
 ) {
     Column(
         modifier = Modifier
@@ -170,6 +203,36 @@ fun MainScreen(
             tasks = importantTasks,
             onTaskClick = onTaskClick
         )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // 添加登出按钮
+        LogoutButton(onClick = onLogout)
+    }
+}
+
+@Composable
+fun LogoutButton(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(60.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF757575)) // 灰色按钮
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "退出登录",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
@@ -259,7 +322,7 @@ fun AddTaskButton(onClick: () -> Unit) {
 @Composable
 fun ImportantTasksSection(
     tasks: List<Task>,
-    onTaskClick: (Task) -> Unit // 添加任务点击回调
+    onTaskClick: (Task) -> Unit
 ) {
     Column {
         Text(
@@ -283,7 +346,7 @@ fun ImportantTasksSection(
                 items(tasks) { task ->
                     TaskItem(
                         task = task,
-                        onClick = { onTaskClick(task) } // 传递点击事件
+                        onClick = { onTaskClick(task) }
                     )
                     if (tasks.indexOf(task) < tasks.size - 1) {
                         Divider()
@@ -297,12 +360,12 @@ fun ImportantTasksSection(
 @Composable
 fun TaskItem(
     task: Task,
-    onClick: () -> Unit // 添加点击回调
+    onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick) // 添加点击事件
+            .clickable(onClick = onClick)
             .padding(vertical = 12.dp, horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
