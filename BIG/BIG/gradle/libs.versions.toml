@@ -4,12 +4,13 @@ junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
 appcompat = "1.7.0"
+kotlinBom = "2.1.0"
 material = "1.12.0"
 activity = "1.10.1"
 constraintlayout = "2.2.1"
 circleimageview = "3.1.0"
 mpandroidchart = "v3.1.0"
-kotlin = "1.9.22"
+kotlin = "2.1.0"
 coreKtx = "1.16.0"
 # Compose 相关版本
 composeBom = "2024.04.00"
@@ -26,6 +27,7 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlinBom" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
 constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
@@ -53,5 +55,6 @@ compose-runtime-livedata = { group = "androidx.compose.runtime", name = "runtime
 # Coroutines
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 [plugins]
+kotlin-android   = { id = "org.jetbrains.kotlin.android",   version.ref = "kotlin" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
