@@ -71,4 +71,16 @@ dependencies {
     implementation(libs.activity.compose)
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
+
+    // Retrofit 用于网络请求
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp.logging)
+
+    // ViewModel
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.compose.runtime.livedata)
+
+    // Coroutines
+    implementation(libs.kotlinx.coroutines.android)
 }
