@@ -1,3 +1,4 @@
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -48,22 +49,26 @@ android {
 }
 
 dependencies {
-    // 首先添加Kotlin BOM以确保一致的Kotlin版本
+    // Kotlin BOM
     implementation(platform(libs.kotlin.bom))
 
-    // 现有依赖
+    /* ---------- AndroidX 基础 ---------- */
+    implementation(libs.core.ktx)
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)
     implementation(libs.constraintlayout)
-    implementation(libs.circleimageview)
-    implementation(libs.mpandroidchart)
-    implementation(libs.core.ktx)
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.ext.junit)
-    androidTestImplementation(libs.espresso.core)
 
-    // Compose 依赖
+    /* ---------- 协程 & Lifecycle ---------- */
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.lifecycle.runtime.ktx)          // ← 新增
+
+    /* ---------- UI / 组件 ---------- */
+    implementation(libs.circleimageview)
+    implementation(libs.glide)                          // ← 新增
+    implementation(libs.mpandroidchart)
+
+    /* ---------- Jetpack Compose ---------- */
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.graphics)
@@ -73,17 +78,20 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 
-    // Retrofit 用于网络请求
+    /* ---------- 网络请求 ---------- */
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp)                         // ← 新增
     implementation(libs.okhttp.logging)
 
-    // ViewModel
+    /* ---------- ViewModel / LiveData ---------- */
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.compose.runtime.livedata)
 
-    // Coroutines
-    implementation(libs.kotlinx.coroutines.android)
+    /* ---------- 测试 ---------- */
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.ext.junit)
+    androidTestImplementation(libs.espresso.core)
 }
 
 // 添加全局配置以强制使用Kotlin 2.1.0
