@@ -42,8 +42,7 @@ func main() {
         c.Next()
     })
     
-    // 设置用户路由
-    routes.SetupUserRoutes(router, db)
+    routes.SetupRoutes(router, db)
     
     // 启动服务器
     port := os.Getenv("PORT")

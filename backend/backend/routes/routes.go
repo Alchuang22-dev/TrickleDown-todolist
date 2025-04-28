@@ -4,6 +4,8 @@ import (
     "github.com/Alchuang22-dev/backend/controllers"
     "github.com/Alchuang22-dev/backend/middlewares"
     "github.com/Alchuang22-dev/backend/repositories"
+
+    "net/http"
     
     "github.com/gin-gonic/gin"
     "go.mongodb.org/mongo-driver/mongo"
@@ -59,4 +61,22 @@ func SetupUserRoutes(router *gin.Engine, db *mongo.Database) {
             users.POST("/:id/logout", userController.Logout)
         }
     }
+}
+
+// 添加 SetupRoutes 函数来设置所有路由
+func SetupRoutes(router *gin.Engine, db *mongo.Database) {
+    // 设置用户路由
+    SetupUserRoutes(router, db)
+    
+    // 设置任务路由
+    SetupTaskRoutes(router, db)
+    
+    // 健康检查路由
+    router.Any("/health", func(c *gin.Context) {
+        if c.Request.Method == "HEAD" {
+            c.Status(http.StatusOK)
+        } else {
+            c.String(http.StatusOK, "healthy")
+        }
+    })
 }

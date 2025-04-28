@@ -48,6 +48,7 @@
         android:textAlignment="center"
         android:textSize="18sp"
         android:textStyle="bold"
+        android:hint="请输入昵称"
         tools:ignore="Autofill,HardcodedText,LabelFor,TextFields,TouchTargetSizeCheck,VisualLintTextFieldSize" />
 
     <TextView
@@ -59,13 +60,25 @@
         android:layout_marginTop="8dp"
         tools:ignore="HardcodedText" />
 
-    <Button
-        android:id="@+id/save_button"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text="保存"
-        android:textColor="#FFFFFF"
-        tools:ignore="HardcodedText,VisualLintButtonSize" />
+        android:layout_marginTop="32dp">
+
+        <Button
+            android:id="@+id/save_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="保存"
+            android:textColor="#FFFFFF"
+            tools:ignore="HardcodedText,VisualLintButtonSize" />
+
+        <ProgressBar
+            android:id="@+id/loading_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+    </FrameLayout>
 
 </LinearLayout>

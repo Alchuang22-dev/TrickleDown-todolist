@@ -56,12 +56,20 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.big.ui.AuthScreen
 import com.example.big.viewmodel.AuthViewModel
 import java.util.Calendar
+import com.example.big.utils.TokenManager
+import com.example.big.utils.UserManager
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val importantTasks = createSampleTasks()
+
+        // 初始化工具
+        initializeTools()
+
+        // 检查登录状态
+        checkAuthState()
 
         setContent {
             MaterialTheme {
@@ -114,6 +122,27 @@ class MainActivity : ComponentActivity() {
         )
 
         return importantTasks
+    }
+
+    private fun initializeTools() {
+        // 初始化 TokenManager
+        TokenManager.init(applicationContext)
+
+        // 初始化其他工具，如 UserManager
+        UserManager.init(applicationContext)
+    }
+
+    private fun checkAuthState() {
+        // 检查是否已经登录
+        if (!TokenManager.isLoggedIn()) {
+            // 可选：如果未登录且需要强制登录，直接跳转到登录页面
+            // startActivity(Intent(this, LoginActivity::class.java))
+            // finish()
+            // return
+
+            // 您当前的实现使用 AuthViewModel 和 AuthScreen 已经处理了这种情况，
+            // 所以这里不需要额外动作
+        }
     }
 }
 
@@ -398,3 +427,4 @@ fun TaskItem(
         )
     }
 }
+
