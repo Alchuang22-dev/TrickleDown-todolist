@@ -2,21 +2,29 @@ package com.example.big
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.DatePicker
 import android.widget.EditText
 import android.widget.NumberPicker
+import android.widget.ProgressBar
 import android.widget.Switch
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.example.big.models.CreateTaskRequest
+import com.example.big.utils.Result
+import com.example.big.utils.TaskManager
+import com.example.big.viewmodel.TaskViewModel
 import java.util.Calendar
 import java.util.Random
 
 class AddTaskActivity : AppCompatActivity() {
+    private val TAG = "AddTaskActivity"
     private var titleEditText: EditText? = null
     private var descriptionEditText: EditText? = null
     private var datePicker: DatePicker? = null
@@ -30,12 +38,18 @@ class AddTaskActivity : AppCompatActivity() {
     private var importantSwitch: Switch? = null
     private var addButton: Button? = null
 
+    // 添加进度指示器
+    private var progressBar: ProgressBar? = null
+
     // 声明新增的事项标签相关控件
     private var categoryEditText: EditText? = null
     private var studyButton: Button? = null
     private var workButton: Button? = null
     private var lifeButton: Button? = null
     private var otherButton: Button? = null
+
+    // 使用 ViewModel
+    private val taskViewModel: TaskViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,11 +63,15 @@ class AddTaskActivity : AppCompatActivity() {
             insets
         }
 
+        // 初始化 TaskManager
+        TaskManager.init(applicationContext)
+
         // 初始化控件
         initViews()
         setupTimePickers()
         setupAddButton()
         setupCategoryButtons()
+        setupViewModelObservers()
 
         findViewById<View>(R.id.back_button).setOnClickListener { v: View? -> finish() }
     }
@@ -134,6 +152,46 @@ class AddTaskActivity : AppCompatActivity() {
         otherButton!!.setOnClickListener { v: View? -> categoryEditText!!.setText("其他") }
     }
 
+    private fun setupViewModelObservers() {
+        // 观察任务操作结果
+        taskViewModel.taskOperationResult.observe(this) { result ->
+            when (result) {
+                is Result.Success -> {
+                    showLoading(false)
+                    Toast.makeText(this, "任务已成功创建: ${result.data.title}", Toast.LENGTH_SHORT).show()
+                    finish() // 返回上一个Activity
+                }
+                is Result.Error -> {
+                    Log.v("result","${result}")
+                    showLoading(false)
+                    Toast.makeText(this, "创建任务失败: ${result.message}", Toast.LENGTH_LONG).show()
+                    Log.e(TAG, "创建任务失败: ${result.message}")
+                }
+                is Result.Loading -> {
+                    showLoading(true)
+                }
+            }
+        }
+
+        // 观察加载状态
+        taskViewModel.loading.observe(this) { isLoading ->
+            showLoading(isLoading)
+        }
+
+        // 观察错误信息
+        taskViewModel.error.observe(this) { errorMsg ->
+            errorMsg?.let {
+                Toast.makeText(this, it, Toast.LENGTH_LONG).show()
+                taskViewModel.clearError()
+            }
+        }
+    }
+
+    private fun showLoading(isLoading: Boolean) {
+        progressBar?.visibility = if (isLoading) View.VISIBLE else View.GONE
+        addButton?.isEnabled = !isLoading
+    }
+
     private fun createNewTask() {
         val title = titleEditText!!.text.toString().trim { it <= ' ' }
 
@@ -143,25 +201,16 @@ class AddTaskActivity : AppCompatActivity() {
             return
         }
 
-        // 生成8位随机ID
-        val id = generateRandomId()
-
         // 获取日期
         val calendar = Calendar.getInstance()
         calendar[datePicker!!.year, datePicker!!.month, datePicker!!.dayOfMonth, 0, 0] = 0
         val date = calendar.time
 
         // 获取描述
-        var description = descriptionEditText!!.text.toString().trim { it <= ' ' }
-        if (description.isEmpty()) {
-            description = "" // 默认空描述
-        }
+        val description = descriptionEditText!!.text.toString().trim { it <= ' ' }
 
         // 获取地点
-        var place = placeEditText!!.text.toString().trim { it <= ' ' }
-        if (place.isEmpty()) {
-            place = "" // 默认空地点
-        }
+        val place = placeEditText!!.text.toString().trim { it <= ' ' }
 
         // 获取重要性
         val important = importantSwitch!!.isChecked
@@ -199,28 +248,23 @@ class AddTaskActivity : AppCompatActivity() {
         dueCal[Calendar.MINUTE] = endMinute
         val dueDate = dueCal.time
 
-        // 创建任务
-        val newTask = Task(
-            id,
-            title,
-            timeRange,
-            date,
-            durationMinutes,
-            important,
-            description,
-            place,
-            dueDate
+        // 创建任务请求对象
+        val createTaskRequest = CreateTaskRequest(
+            title = title,
+            timeRange = timeRange,
+            date = date,
+            durationMinutes = durationMinutes,
+            isImportant = important,
+            description = description,
+            place = place,
+            dueDate = dueDate,
+            category = category,
+            isFinished = false
         )
-        newTask.category = category
-        // 新任务默认设置为未完成
-        newTask.isFinished = false
 
-        // 由于Task类中没有setDelayed方法，我们不能设置延期状态
-        // 您需要在Task类中添加这个方法
-
-        // 这里可以添加保存任务到数据库或传递回上一个Activity的代码
-        Toast.makeText(this, "任务已添加: $title", Toast.LENGTH_SHORT).show()
-        finish() // 返回上一个Activity
+        // 使用ViewModel创建任务
+        taskViewModel.createTask(createTaskRequest)
+        showLoading(true)
     }
 
     private fun generateRandomId(): Int {
