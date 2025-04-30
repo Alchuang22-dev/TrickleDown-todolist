@@ -190,7 +190,7 @@ object TaskManager {
     }
 
     // 完成任务（修改为使用toggle接口）
-    suspend fun finishTask(taskId: Int): Result<TaskResponse> {
+    suspend fun finishTask(taskId: String): Result<TaskResponse> {
         return withContext(Dispatchers.IO) {
             try {
                 val response = TaskApiClient.taskApiService.toggleTaskFinished(taskId.toString())
@@ -198,7 +198,7 @@ object TaskManager {
                     val finishedTask = response.body()!!
                     // 更新缓存
                     val cachedTasks = getCachedTasks().toMutableList()
-                    val index = cachedTasks.indexOfFirst { it.id == taskId.toString()  }
+                    val index = cachedTasks.indexOfFirst { it.id == taskId  }
                     if (index != -1) {
                         cachedTasks[index] = finishedTask
                         cacheTaskList(cachedTasks)

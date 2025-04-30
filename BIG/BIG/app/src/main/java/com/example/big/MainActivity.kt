@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -31,6 +32,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -50,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -146,7 +149,7 @@ class MainActivity : ComponentActivity() {
     private fun refreshImportantTasks() {
         lifecycleScope.launch {
             val tasks = fetchImportantTasks()
-             tasksState.value = tasks
+            tasksState.value = tasks
         }
     }
 
@@ -170,19 +173,19 @@ class MainActivity : ComponentActivity() {
 
                 // 将TaskResponse转换为UI需要的Task对象
                 for (taskResponse in importantTaskResponses) {
-                    importantTasks.add(
-                        Task(
-                            id = taskResponse.id, // 尝试将字符串ID转为整数
-                            title = taskResponse.title,
-                            timeRange = taskResponse.time_range,
-                            date = taskResponse.date, // 直接使用API返回的日期
-                            durationMinutes = taskResponse.duration_minutes,
-                            important = taskResponse.is_important,
-                            //isFinished = taskResponse.is_finished,
-                            description = taskResponse.description,
-                            place = taskResponse.place
-                        )
+                    val task = Task(
+                        id = taskResponse.id, // 尝试将字符串ID转为整数
+                        title = taskResponse.title,
+                        timeRange = taskResponse.time_range,
+                        date = taskResponse.date, // 直接使用API返回的日期
+                        durationMinutes = taskResponse.duration_minutes,
+                        important = taskResponse.is_important,
+                        description = taskResponse.description,
+                        place = taskResponse.place
                     )
+                    // 添加完成状态
+                    task.isFinished = taskResponse.is_finished
+                    importantTasks.add(task)
                 }
 
                 importantTasks.sortBy { task ->
@@ -489,20 +492,38 @@ fun TaskItem(
     task: Task,
     onClick: () -> Unit
 ) {
+    // 为完成的任务设置浅绿色背景
+    val backgroundColor = if (task.isFinished) Color(0xFFE8F5E9) else Color.Transparent
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(backgroundColor)  // 添加背景色
             .clickable(onClick = onClick)
             .padding(vertical = 12.dp, horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 为已完成的任务添加勾选图标
+        if (task.isFinished) {
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = "已完成",
+                tint = Color(0xFF4CAF50),  // 绿色图标
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+
         Column(
             modifier = Modifier.weight(1f)
         ) {
             Text(
                 text = task.title,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                // 为已完成的任务添加删除线
+                textDecoration = if (task.isFinished) TextDecoration.LineThrough else TextDecoration.None,
+                color = if (task.isFinished) Color.Gray else Color.Black  // 已完成任务的文字颜色变灰
             )
             Text(
                 text = task.timeRange,
@@ -525,4 +546,3 @@ fun TaskItem(
         )
     }
 }
-
