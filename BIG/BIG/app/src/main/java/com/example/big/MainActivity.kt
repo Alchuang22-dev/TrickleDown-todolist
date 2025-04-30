@@ -118,7 +118,7 @@ class MainActivity : ComponentActivity() {
         cal[Calendar.MILLISECOND] = 0
 
         // 使用明确的十进制数字作为ID
-        val taskId = 12345678 // 8位数ID
+        val taskId = "12345678" // 8位数ID
 
         // 使用正确的时间范围格式: "HH : MM -- HH : MM"
         importantTasks.add(
@@ -172,7 +172,7 @@ class MainActivity : ComponentActivity() {
                 for (taskResponse in importantTaskResponses) {
                     importantTasks.add(
                         Task(
-                            id = taskResponse.id.toIntOrNull() ?: 0, // 尝试将字符串ID转为整数
+                            id = taskResponse.id, // 尝试将字符串ID转为整数
                             title = taskResponse.title,
                             timeRange = taskResponse.time_range,
                             date = taskResponse.date, // 直接使用API返回的日期

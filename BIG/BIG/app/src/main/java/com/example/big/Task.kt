@@ -3,7 +3,7 @@ package com.example.big
 import java.util.Date
 
 class Task {
-    var id: Int
+    var id: String
         private set
     var title: String
         private set
@@ -40,7 +40,7 @@ class Task {
     var category: String? = null
 
     constructor(
-        id: Int,
+        id: String,
         title: String,
         timeRange: String,
         date: Date,
@@ -57,7 +57,7 @@ class Task {
 
     // （1）包含 description 的构造函数
     constructor(
-        id: Int,
+        id: String,
         title: String,
         timeRange: String,
         date: Date,
@@ -75,7 +75,7 @@ class Task {
     }
 
     // （2）允许 timeRange 和 durationMinutes 使用默认值的构造函数
-    constructor(id: Int, title: String, date: Date, important: Boolean, description: String?) {
+    constructor(id: String, title: String, date: Date, important: Boolean, description: String?) {
         this.id = id
         this.title = title
         this.date = date
@@ -87,7 +87,7 @@ class Task {
 
     // （3）添加包含 place 参数的构造函数
     constructor(
-        id: Int,
+        id: String,
         title: String,
         timeRange: String,
         date: Date,
@@ -108,7 +108,7 @@ class Task {
 
     // （4）添加包含 place 和 due_date 参数的构造函数
     constructor(
-        id: Int,
+        id: String,
         title: String,
         timeRange: String,
         date: Date,

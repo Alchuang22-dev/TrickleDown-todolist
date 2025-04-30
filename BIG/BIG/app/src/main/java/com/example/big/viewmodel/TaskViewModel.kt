@@ -101,13 +101,14 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateTask(taskId: Int, request: CreateTaskRequest) {
+    // 修改参数类型从 Int 到 String
+    fun updateTask(taskId: String, request: CreateTaskRequest) {
         viewModelScope.launch {
             _loading.value = true
             _error.value = null
 
             try {
-                val result = TaskManager.updateTask(taskId, request)
+                val result = TaskManager.updateTask(taskId, request) // 也需要修改 TaskManager 方法
                 _taskOperationResult.value = result
 
                 // 刷新任务列表
@@ -151,13 +152,14 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun deleteTask(taskId: Int) {
+    // 修改参数类型从 Int 到 String
+    fun deleteTask(taskId: String) {
         viewModelScope.launch {
             _loading.value = true
             _error.value = null
 
             try {
-                val result = TaskManager.deleteTask(taskId)
+                val result = TaskManager.deleteTask(taskId) // 也需要修改 TaskManager 方法
                 _deleteTaskResult.value = result
 
                 if (result is TaskManager.Result.Success) {

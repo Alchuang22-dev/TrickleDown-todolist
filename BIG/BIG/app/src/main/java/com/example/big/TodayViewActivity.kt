@@ -74,35 +74,35 @@ class TodayViewActivity : AppCompatActivity() {
 
         // Classes for today
         cal[Calendar.HOUR_OF_DAY] = 9
-        val task1 = Task(1, "上课", "09:00 - 11:30", cal.time, 150, false)
+        val task1 = Task("1", "上课", "09:00 - 11:30", cal.time, 150, false)
 
         cal[Calendar.HOUR_OF_DAY] = 11
         cal[Calendar.MINUTE] = 30
-        val task2 = Task(2, "午间休息", "11:30 - 12:30", cal.time, 60, false)
+        val task2 = Task("2", "午间休息", "11:30 - 12:30", cal.time, 60, false)
 
         cal[Calendar.HOUR_OF_DAY] = 12
         cal[Calendar.MINUTE] = 30
-        val task3 = Task(3, "算法预习", "12:30 - 13:30", cal.time, 60, true)
+        val task3 = Task("3", "算法预习", "12:30 - 13:30", cal.time, 60, true)
 
         cal[Calendar.HOUR_OF_DAY] = 13
         cal[Calendar.MINUTE] = 30
-        val task4 = Task(4, "上课", "13:30 - 17:00", cal.time, 210, false)
+        val task4 = Task("4", "上课", "13:30 - 17:00", cal.time, 210, false)
 
         cal[Calendar.HOUR_OF_DAY] = 15
         cal[Calendar.MINUTE] = 0
-        val task4_overlap = Task(10, "课间休息", "15:00 - 15:30", cal.time, 30, false)
+        val task4_overlap = Task("10", "课间休息", "15:00 - 15:30", cal.time, 30, false)
 
         cal[Calendar.HOUR_OF_DAY] = 17
         cal[Calendar.MINUTE] = 30
-        val task5 = Task(5, "法律原理预习", "17:30 - 19:00", cal.time, 90, true)
+        val task5 = Task("5", "法律原理预习", "17:30 - 19:00", cal.time, 90, true)
 
         cal[Calendar.HOUR_OF_DAY] = 19
         cal[Calendar.MINUTE] = 0
-        val task6 = Task(6, "上课", "19:00 - 21:00", cal.time, 120, false)
+        val task6 = Task("6", "上课", "19:00 - 21:00", cal.time, 120, false)
 
         cal[Calendar.HOUR_OF_DAY] = 21
         cal[Calendar.MINUTE] = 30
-        val task9 = Task(9, "班团例会 (双周)", "21:30 - 23:00", cal.time, 90, true)
+        val task9 = Task("9", "班团例会 (双周)", "21:30 - 23:00", cal.time, 90, true)
 
         taskList?.add(task1)
         taskList?.add(task2)

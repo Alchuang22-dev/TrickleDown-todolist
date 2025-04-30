@@ -13,7 +13,8 @@ data class CreateTaskRequest(
     val place: String? = null,
     val due_date: Date? = null,  // 使用下划线命名以匹配后端
     val category: String? = null,
-    val is_finished: Boolean = false  // 使用下划线命名以匹配后端
+    val is_finished: Boolean = false,  // 使用下划线命名以匹配后端
+    val is_delayed: Boolean = false
 )
 
 // 服务器响应的任务模型

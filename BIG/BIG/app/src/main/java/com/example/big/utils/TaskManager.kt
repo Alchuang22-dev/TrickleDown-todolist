@@ -139,16 +139,16 @@ object TaskManager {
             }
         }
     }
-    // 更新任务
-    suspend fun updateTask(taskId: Int, request: CreateTaskRequest): Result<TaskResponse> {
+    // 修改参数类型从 Int 到 String
+    suspend fun updateTask(taskId: String, request: CreateTaskRequest): Result<TaskResponse> {
         return withContext(Dispatchers.IO) {
             try {
-                val response = TaskApiClient.taskApiService.updateTask(taskId.toString(), request)
+                val response = TaskApiClient.taskApiService.updateTask(taskId, request)
                 if (response.isSuccessful && response.body() != null) {
                     val updatedTask = response.body()!!
                     // 更新缓存
                     val cachedTasks = getCachedTasks().toMutableList()
-                    val index = cachedTasks.indexOfFirst { it.id == taskId.toString()  }
+                    val index = cachedTasks.indexOfFirst { it.id == taskId }
                     if (index != -1) {
                         cachedTasks[index] = updatedTask
                         cacheTaskList(cachedTasks)
@@ -162,6 +162,29 @@ object TaskManager {
             } catch (e: Exception) {
                 Log.e(TAG, "更新任务时发生错误: ${e.message}", e)
                 Result.Error(e.message ?: "更新任务时发生未知错误")
+            }
+        }
+    }
+
+    // 同样修改 deleteTask 方法
+    suspend fun deleteTask(taskId: String): Result<Boolean> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = TaskApiClient.taskApiService.deleteTask(taskId)
+                if (response.isSuccessful) {
+                    // 更新缓存
+                    val cachedTasks = getCachedTasks().toMutableList()
+                    cachedTasks.removeIf { it.id == taskId }
+                    cacheTaskList(cachedTasks)
+                    Log.d(TAG, "成功删除任务 ID: $taskId")
+                    Result.Success(true)
+                } else {
+                    Log.e(TAG, "删除任务失败: ${response.code()} - ${response.errorBody()?.string()}")
+                    Result.Error("删除任务失败: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "删除任务时发生错误: ${e.message}", e)
+                Result.Error(e.message ?: "删除任务时发生未知错误")
             }
         }
     }
@@ -213,6 +236,26 @@ object TaskManager {
             } catch (e: Exception) {
                 Log.e(TAG, "获取日期任务时发生错误: ${e.message}", e)
                 Result.Error(e.message ?: "获取日期任务时发生未知错误")
+            }
+        }
+    }
+
+    // 添加到 TaskManager 类中的新方法
+    suspend fun getTaskById(taskId: String): Result<TaskResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = TaskApiClient.taskApiService.getTask(taskId)
+                if (response.isSuccessful && response.body() != null) {
+                    val task = response.body()!!
+                    Log.d(TAG, "成功获取任务详情: ${task.title}")
+                    Result.Success(task)
+                } else {
+                    Log.e(TAG, "获取任务详情失败: ${response.code()} - ${response.errorBody()?.string()}")
+                    Result.Error("获取任务详情失败: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "获取任务详情时发生错误: ${e.message}", e)
+                Result.Error(e.message ?: "获取任务详情时发生未知错误")
             }
         }
     }
