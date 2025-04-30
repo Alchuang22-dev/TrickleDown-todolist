@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.big.ui.AuthScreen
+import com.example.big.utils.TaskManager
 import com.example.big.viewmodel.AuthViewModel
 import java.util.Calendar
 import com.example.big.utils.TokenManager
@@ -130,6 +131,7 @@ class MainActivity : ComponentActivity() {
 
         // 初始化其他工具，如 UserManager
         UserManager.init(applicationContext)
+        TaskManager.init(applicationContext)
     }
 
     private fun checkAuthState() {
