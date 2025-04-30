@@ -10,16 +10,24 @@ data class CreateTaskResponse(
     val message: String
 )
 
+// 任务列表响应
+data class TaskListResponse(
+    val tasks: List<TaskResponse>,
+    val total: Int,
+    val page: Int,
+    val limit: Int
+)
+
 interface TaskApiService {
-    // 获取用户的所有任务（修改为包含用户ID）
+    // 获取用户的所有任务
     @GET("api/tasks/users/{userId}")
-    suspend fun getAllTasks(@Path("userId") userId: String): Response<List<TaskResponse>>
+    suspend fun getAllTasks(@Path("userId") userId: String): Response<TaskListResponse>
 
     // 获取任务详情
     @GET("api/tasks/{taskId}")
     suspend fun getTask(@Path("taskId") taskId: String): Response<TaskResponse>
 
-    // 创建任务（修改为包含用户ID）
+    // 创建任务
     @POST("api/tasks/users/{userId}")
     suspend fun createTask(
         @Path("userId") userId: String,
@@ -46,7 +54,7 @@ interface TaskApiService {
     suspend fun getTasksByCategory(
         @Path("userId") userId: String,
         @Query("category") category: String
-    ): Response<List<TaskResponse>>
+    ): Response<TaskListResponse>
 
     // 按日期获取任务
     @GET("api/tasks/users/{userId}/today")

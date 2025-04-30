@@ -157,33 +157,18 @@ class AddTaskActivity : AppCompatActivity() {
         // 观察任务操作结果
         taskViewModel.taskOperationResult.observe(this) { result ->
             when (result) {
-                is Result.Success -> {
+                is TaskManager.Result.Success -> {
                     showLoading(false)
                     Toast.makeText(this, "任务已成功创建: ${result.data.title}", Toast.LENGTH_SHORT).show()
                     finish() // 返回上一个Activity
                 }
-                is Result.Error -> {
-                    Log.v("result","${result}")
+                is TaskManager.Result.Error -> {
+                    Log.v("result","$result")
                     showLoading(false)
                     Toast.makeText(this, "创建任务失败: ${result.message}", Toast.LENGTH_LONG).show()
                     Log.e(TAG, "创建任务失败: ${result.message}")
                 }
-                is Result.Loading -> {
-                    showLoading(true)
-                }
-            }
-        }
-
-        // 观察加载状态
-        taskViewModel.loading.observe(this) { isLoading ->
-            showLoading(isLoading)
-        }
-
-        // 观察错误信息
-        taskViewModel.error.observe(this) { errorMsg ->
-            errorMsg?.let {
-                Toast.makeText(this, it, Toast.LENGTH_LONG).show()
-                taskViewModel.clearError()
+                // 移除 Result.Loading 分支，因为 TaskManager.Result 中没有定义该类型
             }
         }
     }

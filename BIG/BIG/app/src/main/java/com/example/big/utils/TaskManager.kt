@@ -32,6 +32,12 @@ object TaskManager {
         prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     }
 
+    // 在 TaskManager 类内部添加 Result 封装类
+    sealed class Result<out T> {
+        data class Success<T>(val data: T) : Result<T>()
+        data class Error(val message: String) : Result<Nothing>()
+    }
+
     // 设置当前用户ID
     fun setCurrentUserId(userId: String) {
         currentUserId = userId
@@ -86,10 +92,16 @@ object TaskManager {
             try {
                 val userId = getCurrentUserId()
                 val response = TaskApiClient.taskApiService.getAllTasks(userId)
+
                 if (response.isSuccessful && response.body() != null) {
-                    val tasks = response.body()!!
+                    val responseBody = response.body()!!
+                    val tasks = responseBody.tasks
+
+                    // 打印详细信息以便调试
+                    Log.d(TAG, "API响应: 总计${responseBody.total}个任务，当前页${responseBody.page}，每页${responseBody.limit}")
+                    Log.d(TAG, "获取到${tasks.size}个任务")
+
                     cacheTaskList(tasks)
-                    Log.d(TAG, "成功从服务器获取 ${tasks.size} 个任务")
                     Result.Success(tasks)
                 } else {
                     Log.e(TAG, "获取任务失败: ${response.code()} - ${response.errorBody()?.string()}")
@@ -236,7 +248,9 @@ object TaskManager {
                 val response = TaskApiClient.taskApiService.getTasksByCategory(userId, category)
 
                 if (response.isSuccessful && response.body() != null) {
-                    val tasks = response.body()!!
+                    val responseBody = response.body()!!
+                    val tasks = responseBody.tasks
+
                     Log.d(TAG, "成功获取分类 $category 的 ${tasks.size} 个任务")
                     Result.Success(tasks)
                 } else {
@@ -250,20 +264,43 @@ object TaskManager {
         }
     }
 
+    // 按日期获取任务
+    suspend fun getTasksByDate(userId: String, date: String): Result<List<TaskResponse>> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = TaskApiClient.taskApiService.getTasksByDate(userId, date)
+                if (response.isSuccessful && response.body() != null) {
+                    val tasks = response.body()!!
+                    Log.d(TAG, "成功获取 ${date} 的 ${tasks.size} 个任务")
+                    Result.Success(tasks)
+                } else {
+                    Log.e(TAG, "获取日期任务失败: ${response.code()} - ${response.errorBody()?.string()}")
+                    Result.Error("获取日期任务失败: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "获取日期任务时发生错误: ${e.message}", e)
+                Result.Error(e.message ?: "获取日期任务时发生未知错误")
+            }
+        }
+    }
+
+    // 刷新缓存
     // 刷新缓存
     suspend fun refreshCache() {
         try {
             val userId = getCurrentUserId()
             val response = TaskApiClient.taskApiService.getAllTasks(userId)
             if (response.isSuccessful && response.body() != null) {
-                cacheTaskList(response.body()!!)
-                Log.d(TAG, "任务缓存已刷新")
+                val taskListResponse = response.body()!!
+                // 从 TaskListResponse 中提取任务列表，然后传递给原有的 cacheTaskList 函数
+                val tasks = taskListResponse.tasks
+                cacheTaskList(tasks)
+                Log.d(TAG, "任务缓存已刷新 (共 ${tasks.size} 个任务)")
             }
         } catch (e: Exception) {
             Log.e(TAG, "刷新缓存失败: ${e.message}", e)
         }
     }
-
     // 清除缓存
     fun clearCache() {
         prefs.edit()
