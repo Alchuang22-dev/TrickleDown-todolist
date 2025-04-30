@@ -16,8 +16,8 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.ViewModelProvider
 import com.example.big.models.CreateTaskRequest
-import com.example.big.utils.Result
 import com.example.big.utils.TaskManager
 import com.example.big.viewmodel.TaskViewModel
 import java.util.Calendar
@@ -156,33 +156,18 @@ class AddTaskActivity : AppCompatActivity() {
         // 观察任务操作结果
         taskViewModel.taskOperationResult.observe(this) { result ->
             when (result) {
-                is Result.Success -> {
+                is TaskManager.Result.Success -> {
                     showLoading(false)
                     Toast.makeText(this, "任务已成功创建: ${result.data.title}", Toast.LENGTH_SHORT).show()
                     finish() // 返回上一个Activity
                 }
-                is Result.Error -> {
-                    Log.v("result","${result}")
+                is TaskManager.Result.Error -> {
+                    Log.v("result","$result")
                     showLoading(false)
                     Toast.makeText(this, "创建任务失败: ${result.message}", Toast.LENGTH_LONG).show()
                     Log.e(TAG, "创建任务失败: ${result.message}")
                 }
-                is Result.Loading -> {
-                    showLoading(true)
-                }
-            }
-        }
-
-        // 观察加载状态
-        taskViewModel.loading.observe(this) { isLoading ->
-            showLoading(isLoading)
-        }
-
-        // 观察错误信息
-        taskViewModel.error.observe(this) { errorMsg ->
-            errorMsg?.let {
-                Toast.makeText(this, it, Toast.LENGTH_LONG).show()
-                taskViewModel.clearError()
+                // 移除 Result.Loading 分支，因为 TaskManager.Result 中没有定义该类型
             }
         }
     }
@@ -193,7 +178,7 @@ class AddTaskActivity : AppCompatActivity() {
     }
 
     private fun createNewTask() {
-        val title = titleEditText!!.text.toString().trim { it <= ' ' }
+        val title = titleEditText?.text.toString().trim()
 
         // 检查必填字段
         if (title.isEmpty()) {
@@ -203,68 +188,85 @@ class AddTaskActivity : AppCompatActivity() {
 
         // 获取日期
         val calendar = Calendar.getInstance()
-        calendar[datePicker!!.year, datePicker!!.month, datePicker!!.dayOfMonth, 0, 0] = 0
+        datePicker?.let { calendar.set(it.year, datePicker!!.month, datePicker!!.dayOfMonth, 0, 0, 0) }
         val date = calendar.time
 
         // 获取描述
-        val description = descriptionEditText!!.text.toString().trim { it <= ' ' }
+        val description = descriptionEditText?.text.toString().trim()
 
         // 获取地点
-        val place = placeEditText!!.text.toString().trim { it <= ' ' }
+        val place = placeEditText?.text.toString().trim()
 
         // 获取重要性
-        val important = importantSwitch!!.isChecked
+        val important = importantSwitch?.isChecked
 
         // 获取标签
-        var category = categoryEditText!!.text.toString().trim { it <= ' ' }
-        if (category.isEmpty()) {
-            category = "其他" // 默认标签
-        }
+        val category = categoryEditText?.text.toString().trim().ifEmpty { "其他" }
 
         // 获取时间范围和持续时间
-        val startHour = startHourPicker!!.value
-        val endHour = endHourPicker!!.value
-        val startMinuteIndex = startMinutePicker!!.value
-        val endMinuteIndex = endMinutePicker!!.value
-        val startMinute = startMinuteIndex * 5
-        val endMinute = endMinuteIndex * 5
+        val startHour = startHourPicker?.value
+        val endHour = endHourPicker?.value
+        val startMinuteIndex = startMinutePicker?.value
+        val endMinuteIndex = endMinutePicker?.value
+        val startMinute = startMinuteIndex?.times(5)
+        val endMinute = endMinuteIndex?.times(5)
 
         // 格式化时间范围
-        @SuppressLint("DefaultLocale") val startHourStr = String.format("%02d", startHour)
-        @SuppressLint("DefaultLocale") val startMinuteStr = String.format("%02d", startMinute)
-        @SuppressLint("DefaultLocale") val endHourStr = String.format("%02d", endHour)
-        @SuppressLint("DefaultLocale") val endMinuteStr = String.format("%02d", endMinute)
+        val startHourStr = String.format("%02d", startHour)
+        val startMinuteStr = String.format("%02d", startMinute)
+        val endHourStr = String.format("%02d", endHour)
+        val endMinuteStr = String.format("%02d", endMinute)
 
-        val timeRange =
-            "$startHourStr : $startMinuteStr -- $endHourStr : $endMinuteStr"
+        val timeRange = "$startHourStr:$startMinuteStr - $endHourStr:$endMinuteStr"
 
-        // 计算持续时间（分钟）
-        val durationMinutes = (endHour - startHour) * 60 + (endMinute - startMinute)
+        // 计算持续时间（分钟）- 修复语法问题
+        val durationMinutes = if (startHour != null && endHour != null && startMinute != null && endMinute != null) {
+            (endHour - startHour) * 60 + (endMinute - startMinute)
+        } else {
+            0 // 默认值
+        }
 
-        // 如果时间范围有效，设置dueDate为日期加结束时间
+        // 设置截止日期为日期加结束时间
         val dueCal = Calendar.getInstance()
         dueCal.time = date
-        dueCal[Calendar.HOUR_OF_DAY] = endHour
-        dueCal[Calendar.MINUTE] = endMinute
+        endHour?.let { dueCal.set(Calendar.HOUR_OF_DAY, it) }
+        endMinute?.let { dueCal.set(Calendar.MINUTE, it) }
         val dueDate = dueCal.time
 
-        // 创建任务请求对象
-        val createTaskRequest = CreateTaskRequest(
-            title = title,
-            timeRange = timeRange,
-            date = date,
-            durationMinutes = durationMinutes,
-            isImportant = important,
-            description = description,
-            place = place,
-            dueDate = dueDate,
-            category = category,
-            isFinished = false
-        )
+        // 创建请求对象 - 注意字段名与后端匹配
+        val createTaskRequest = important?.let {
+            CreateTaskRequest(
+                title = title,
+                time_range = timeRange,  // 使用下划线命名
+                date = date,
+                duration_minutes = durationMinutes,  // 使用下划线命名
+                is_important = it,  // 使用下划线命名
+                description = description,
+                place = place,
+                due_date = dueDate,  // 使用下划线命名
+                category = category,
+                is_finished = false  // 使用下划线命名
+            )
+        }
 
         // 使用ViewModel创建任务
-        taskViewModel.createTask(createTaskRequest)
-        showLoading(true)
+        val viewModel = ViewModelProvider(this)[TaskViewModel::class.java]
+        createTaskRequest?.let { viewModel.createTask(it) }
+
+        // 观察创建成功状态
+        viewModel.taskCreationSuccess.observe(this) { success ->
+            if (success) {
+                Toast.makeText(this, "任务已成功创建", Toast.LENGTH_SHORT).show()
+                finish()  // 返回上一个Activity
+            }
+        }
+
+        // 观察错误信息
+        viewModel.error.observe(this) { errorMsg ->
+            if (errorMsg != null && errorMsg.isNotEmpty()) {
+                Toast.makeText(this, "创建任务失败: $errorMsg", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun generateRandomId(): Int {

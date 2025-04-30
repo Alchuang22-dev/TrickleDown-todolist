@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -31,6 +32,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -50,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -59,12 +62,16 @@ import com.example.big.viewmodel.AuthViewModel
 import java.util.Calendar
 import com.example.big.utils.TokenManager
 import com.example.big.utils.UserManager
+// import com.google.android.gms.common.api.Result
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    // 在活动级别存储任务状态
+    private var tasksState = mutableStateOf(listOf<Task>())
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val importantTasks = createSampleTasks()
 
         // 初始化工具
         initializeTools()
@@ -74,8 +81,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
+                // 使用活动级别的状态
+                val tasks by remember { tasksState }
+
                 App(
-                    importantTasks = importantTasks,
+                    importantTasks = tasks,
                     onNavigate = { activityClass ->
                         startActivity(Intent(this, activityClass))
                     },
@@ -94,7 +104,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+
+        // 在创建时获取任务
+        refreshImportantTasks()
     }
+
 
     private fun createSampleTasks(): List<Task> {
         val importantTasks: MutableList<Task> = ArrayList()
@@ -107,7 +121,7 @@ class MainActivity : ComponentActivity() {
         cal[Calendar.MILLISECOND] = 0
 
         // 使用明确的十进制数字作为ID
-        val taskId = 12345678 // 8位数ID
+        val taskId = "12345678" // 8位数ID
 
         // 使用正确的时间范围格式: "HH : MM -- HH : MM"
         importantTasks.add(
@@ -121,6 +135,91 @@ class MainActivity : ComponentActivity() {
                 "这是一个任务的简介"
             )
         )
+
+        return importantTasks
+    }
+
+    // 添加 onResume 生命周期方法，确保每次回到该活动时都刷新任务
+    override fun onResume() {
+        super.onResume()
+        refreshImportantTasks()
+    }
+
+    // 新方法：刷新重要任务
+    private fun refreshImportantTasks() {
+        lifecycleScope.launch {
+            val tasks = fetchImportantTasks()
+            tasksState.value = tasks
+        }
+    }
+
+    private suspend fun fetchImportantTasks(): List<Task> {
+        val importantTasks: MutableList<Task> = ArrayList()
+
+        try {
+            // 获取当前用户ID
+            val userId = UserManager.getUserId() ?: return importantTasks
+
+            // 获取今天的日期，格式化为API需要的格式 (yyyy-MM-dd)
+            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            val todayDate = dateFormat.format(java.util.Date())
+
+            // 调用API获取今日任务
+            val response = TaskManager.getTasksByDate(userId, todayDate)
+
+            if (response is TaskManager.Result.Success) {
+                // 筛选出重要的任务
+                val importantTaskResponses = response.data.filter { it.is_important }
+
+                // 将TaskResponse转换为UI需要的Task对象
+                for (taskResponse in importantTaskResponses) {
+                    val task = Task(
+                        id = taskResponse.id, // 尝试将字符串ID转为整数
+                        title = taskResponse.title,
+                        timeRange = taskResponse.time_range,
+                        date = taskResponse.date, // 直接使用API返回的日期
+                        durationMinutes = taskResponse.duration_minutes,
+                        important = taskResponse.is_important,
+                        description = taskResponse.description,
+                        place = taskResponse.place
+                    )
+                    // 添加完成状态
+                    task.isFinished = taskResponse.is_finished
+                    importantTasks.add(task)
+                }
+
+                importantTasks.sortBy { task ->
+                    try {
+                        // 检查分隔符，可能是 "--" 或 "-"
+                        val timeRange = task.timeRange
+                        val delimiter = if (timeRange.contains("--")) "--" else "-"
+
+                        // 分割时间范围
+                        val startTimeStr = timeRange.split(delimiter)[0].trim()
+
+                        // 提取小时和分钟，移除可能的空格
+                        val cleanTimeStr = startTimeStr.replace(" ", "")
+                        val hourMinute = cleanTimeStr.split(":")
+
+                        // 转换为分钟数
+                        val hours = hourMinute[0].toInt()
+                        val minutes = hourMinute[1].toInt()
+
+                        hours * 60 + minutes  // 转换为分钟数用于排序
+                    } catch (e: Exception) {
+                        // 错误处理
+                        android.util.Log.e("MainActivity", "解析任务时间失败: ${e.message} for timeRange: ${task.timeRange}", e)
+                        Int.MAX_VALUE  // 排在最后
+                    }
+                }
+            } else if (response is TaskManager.Result.Error) {
+                // 记录错误日志
+                android.util.Log.e("MainActivity", "获取今日重要任务失败: ${response.message}")
+            }
+        } catch (e: Exception) {
+            // 错误处理
+            android.util.Log.e("MainActivity", "获取今日重要任务时出现异常", e)
+        }
 
         return importantTasks
     }
@@ -393,20 +492,38 @@ fun TaskItem(
     task: Task,
     onClick: () -> Unit
 ) {
+    // 为完成的任务设置浅绿色背景
+    val backgroundColor = if (task.isFinished) Color(0xFFE8F5E9) else Color.Transparent
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(backgroundColor)  // 添加背景色
             .clickable(onClick = onClick)
             .padding(vertical = 12.dp, horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 为已完成的任务添加勾选图标
+        if (task.isFinished) {
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = "已完成",
+                tint = Color(0xFF4CAF50),  // 绿色图标
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+
         Column(
             modifier = Modifier.weight(1f)
         ) {
             Text(
                 text = task.title,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                // 为已完成的任务添加删除线
+                textDecoration = if (task.isFinished) TextDecoration.LineThrough else TextDecoration.None,
+                color = if (task.isFinished) Color.Gray else Color.Black  // 已完成任务的文字颜色变灰
             )
             Text(
                 text = task.timeRange,
@@ -429,4 +546,3 @@ fun TaskItem(
         )
     }
 }
-

@@ -180,29 +180,29 @@ class KanbanViewActivity : AppCompatActivity() {
         val cal = Calendar.getInstance()
 
         // Classes for today
-        val task1 = Task(1, "上课", "09:00 - 11:30", cal.time, 150, false)
+        val task1 = Task("1", "上课", "09:00 - 11:30", cal.time, 150, false)
         cal.add(Calendar.HOUR_OF_DAY, 2)
-        val task2 = Task(2, "午间休息", "11:30 - 12:30", cal.time, 60, false)
+        val task2 = Task("2", "午间休息", "11:30 - 12:30", cal.time, 60, false)
         cal.add(Calendar.HOUR_OF_DAY, 1)
-        val task3 = Task(3, "算法预习", "12:30 - 13:30", cal.time, 60, true)
+        val task3 = Task("3", "算法预习", "12:30 - 13:30", cal.time, 60, true)
         cal.add(Calendar.HOUR_OF_DAY, 1)
-        val task4 = Task(4, "上课", "13:30 - 17:00", cal.time, 210, false)
+        val task4 = Task("4", "上课", "13:30 - 17:00", cal.time, 210, false)
         cal.add(Calendar.HOUR_OF_DAY, 1)
-        val task5 = Task(5, "法律原理预习", "17:30 - 19:00", cal.time, 90, true)
+        val task5 = Task("5", "法律原理预习", "17:30 - 19:00", cal.time, 90, true)
         cal.add(Calendar.HOUR_OF_DAY, 2)
-        val task6 = Task(6, "上课", "19:00 - 21:00", cal.time, 120, false)
+        val task6 = Task("6", "上课", "19:00 - 21:00", cal.time, 120, false)
 
         // Classes for tomorrow
         val tomorrow = Calendar.getInstance()
         tomorrow.add(Calendar.DAY_OF_MONTH, 1)
-        val task7 = Task(7, "上课", "15:10 - 17:45", tomorrow.time, 155, false)
+        val task7 = Task("7", "上课", "15:10 - 17:45", tomorrow.time, 155, false)
 
         // Meetings for next two days
         val dayAfterTomorrow = Calendar.getInstance()
         dayAfterTomorrow.add(Calendar.DAY_OF_MONTH, 2)
 
-        val task8 = Task(8, "赞协商会 (双周)", "22:00 - 23:00", tomorrow.time, 60, true)
-        val task9 = Task(9, "班团例会 (双周)", "21:30 - 23:00", dayAfterTomorrow.time, 90, true)
+        val task8 = Task("8", "赞协商会 (双周)", "22:00 - 23:00", tomorrow.time, 60, true)
+        val task9 = Task("9", "班团例会 (双周)", "21:30 - 23:00", dayAfterTomorrow.time, 90, true)
 
         (taskList as ArrayList<Task>).apply {
             add(task1)

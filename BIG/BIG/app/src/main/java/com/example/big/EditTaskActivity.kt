@@ -1,13 +1,11 @@
 package com.example.big
 
 import android.annotation.SuppressLint
-import android.content.DialogInterface
-import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
-import android.widget.CompoundButton
 import android.widget.DatePicker
 import android.widget.EditText
 import android.widget.NumberPicker
@@ -19,8 +17,16 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import com.example.big.models.TaskResponse
+import com.example.big.utils.TaskManager
+import com.example.big.viewmodel.TaskViewModel
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
+import java.util.Locale
 
 class EditTaskActivity : AppCompatActivity() {
     private var titleEditText: EditText? = null
@@ -46,8 +52,13 @@ class EditTaskActivity : AppCompatActivity() {
     private var lifeButton: Button? = null
     private var otherButton: Button? = null
 
-    private var currentTask: Task? = null
-    private var taskId = 0
+    private var currentTask: TaskResponse? = null
+    private var taskId: String = ""
+    private lateinit var taskViewModel: TaskViewModel
+    private val TAG = "EditTaskActivity"
+
+    // 标记是否需要响应完成状态更改
+    private var shouldRespondToFinishedChange = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,24 +72,13 @@ class EditTaskActivity : AppCompatActivity() {
             insets
         }
 
-        // 获取当前编辑的任务ID
-        taskId = intent.getIntExtra("task_id", -1)
-        if (taskId == -1) {
-            // Toast.makeText(this, "任务ID无效", Toast.LENGTH_SHORT).show()
-            Toast.makeText(
-                /* context = */ this,   // 或 holder.itemView.context 等
-                /* text     = */ "任务 ID: ${taskId}",
-                /* duration = */ Toast.LENGTH_SHORT
-            ).show()
-            finish()
-            return
-        }
+        // 初始化 ViewModel
+        taskViewModel = ViewModelProvider(this).get(TaskViewModel::class.java)
 
-        // 从数据库或其他存储中获取任务对象
-        // 这里示例使用，实际应用中应该从数据库获取
-        currentTask = getTaskById(taskId)
-        if (currentTask == null) {
-            Toast.makeText(this, "无法找到任务", Toast.LENGTH_SHORT).show()
+        // 获取当前编辑的任务ID
+        taskId = intent.getStringExtra("task_id") ?: ""
+        if (taskId.isEmpty()) {
+            Toast.makeText(this, "任务ID无效", Toast.LENGTH_SHORT).show()
             finish()
             return
         }
@@ -89,36 +89,125 @@ class EditTaskActivity : AppCompatActivity() {
         setupButtons()
         setupStatusCheckBoxes()
         setupCategoryButtons()
+        setupObservers()
 
-        // 填充现有任务数据
-        populateTaskData()
+        // 获取任务详情
+        fetchTaskDetails(taskId)
 
-        findViewById<View>(R.id.back_button).setOnClickListener { v: View? -> finish() }
+        findViewById<View>(R.id.back_button).setOnClickListener { finish() }
     }
 
-    // 示例方法，实际应用中应从数据库获取
-    private fun getTaskById(id: Int): Task {
-        // 模拟数据，实际应用中应该从数据库获取
-        // 这里暂时返回一个假的Task对象用于演示
-        val cal = Calendar.getInstance()
-        val date = cal.time
+    private fun setupObservers() {
+        // 观察任务操作结果
+        taskViewModel.taskOperationResult.observe(this) { result ->
+            when (result) {
+                is TaskManager.Result.Success -> {
+                    hideLoading()
+                    Toast.makeText(this, "任务更新成功", Toast.LENGTH_SHORT).show()
 
-        val task = Task(
-            id,
-            "示例任务",
-            "09 : 00 -- 10 : 30",
-            date,
-            90,
-            true,
-            "这是一个示例任务描述",
-            "示例地点",
-            date
-        )
-        task.category = "学习"
-        task.isFinished = false
-        // 由于Task类中没有setDelayed方法，我们不能在这里设置延期状态
-        // 需要在Task类中添加这个方法
-        return task
+                    // 如果是完成状态变更，更新UI而不是关闭页面
+                    if (result.data != null) {
+                        currentTask = result.data
+                        // 暂时禁用响应，防止循环触发
+                        shouldRespondToFinishedChange = false
+                        updateFinishedUI(result.data.is_finished)
+                        shouldRespondToFinishedChange = true
+                    } else {
+                        setResult(RESULT_OK)
+                        finish()
+                    }
+                }
+                is TaskManager.Result.Error -> {
+                    hideLoading()
+                    Toast.makeText(this, "任务更新失败: ${result.message}", Toast.LENGTH_LONG).show()
+                    Log.e(TAG, "任务更新失败: ${result.message}")
+                }
+            }
+        }
+
+        // 观察删除任务结果
+        taskViewModel.deleteTaskResult.observe(this) { result ->
+            when (result) {
+                is TaskManager.Result.Success -> {
+                    hideLoading()
+                    Toast.makeText(this, "任务删除成功", Toast.LENGTH_SHORT).show()
+                    setResult(RESULT_OK)
+                    finish()
+                }
+                is TaskManager.Result.Error -> {
+                    hideLoading()
+                    Toast.makeText(this, "任务删除失败: ${result.message}", Toast.LENGTH_LONG).show()
+                    Log.e(TAG, "任务删除失败: ${result.message}")
+                }
+            }
+        }
+
+        // 观察错误信息
+        taskViewModel.error.observe(this) { error ->
+            if (!error.isNullOrEmpty()) {
+                Toast.makeText(this, error, Toast.LENGTH_LONG).show()
+                Log.e(TAG, "错误: $error")
+                taskViewModel.clearError()
+                hideLoading()
+            }
+        }
+    }
+
+    private fun updateFinishedUI(isFinished: Boolean) {
+        finishedCheckBox?.isChecked = isFinished
+        finishedStatusText?.text = if (isFinished) "已完成" else "未完成"
+    }
+
+    private fun showLoading() {
+        // 在实际应用中应该显示进度指示器
+        editButton?.isEnabled = false
+        deleteButton?.isEnabled = false
+    }
+
+    private fun hideLoading() {
+        editButton?.isEnabled = true
+        deleteButton?.isEnabled = true
+    }
+
+    private fun fetchTaskDetails(taskId: String) {
+        showLoading()
+        lifecycleScope.launch {
+            try {
+                val response = TaskManager.getTaskById(taskId)
+                when (response) {
+                    is TaskManager.Result.Success -> {
+                        currentTask = response.data
+                        populateTaskData(response.data)
+                    }
+                    is TaskManager.Result.Error -> {
+                        Toast.makeText(this@EditTaskActivity,
+                            "获取任务详情失败: ${response.message}",
+                            Toast.LENGTH_LONG).show()
+                        Log.e(TAG, "获取任务详情失败: ${response.message}")
+                    }
+                }
+                hideLoading()
+            } catch (e: Exception) {
+                Log.e(TAG, "获取任务详情时出现异常", e)
+                Toast.makeText(
+                    this@EditTaskActivity,
+                    "获取任务详情失败: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+                hideLoading()
+                finish()
+            }
+        }
+    }
+
+    private suspend fun getTaskById(taskId: String): TaskManager.Result<TaskResponse> {
+        return try {
+            val response = TaskManager.getTaskById(taskId)
+            response
+        } catch (e: Exception) {
+            Log.e(TAG, "获取任务详情异常", e)
+            TaskManager.Result.Error(e.message ?: "未知错误")
+        }
     }
 
     private fun initViews() {
@@ -163,10 +252,10 @@ class EditTaskActivity : AppCompatActivity() {
         endMinutePicker!!.displayedValues = minutes
 
         // 设置结束时间的监听器，确保结束时间晚于开始时间
-        endHourPicker!!.setOnValueChangedListener { picker: NumberPicker?, oldVal: Int, newVal: Int -> validateEndTime() }
-        endMinutePicker!!.setOnValueChangedListener { picker: NumberPicker?, oldVal: Int, newVal: Int -> validateEndTime() }
-        startHourPicker!!.setOnValueChangedListener { picker: NumberPicker?, oldVal: Int, newVal: Int -> validateEndTime() }
-        startMinutePicker!!.setOnValueChangedListener { picker: NumberPicker?, oldVal: Int, newVal: Int -> validateEndTime() }
+        endHourPicker!!.setOnValueChangedListener { _, _, _ -> validateEndTime() }
+        endMinutePicker!!.setOnValueChangedListener { _, _, _ -> validateEndTime() }
+        startHourPicker!!.setOnValueChangedListener { _, _, _ -> validateEndTime() }
+        startMinutePicker!!.setOnValueChangedListener { _, _, _ -> validateEndTime() }
     }
 
     private fun validateEndTime() {
@@ -192,43 +281,50 @@ class EditTaskActivity : AppCompatActivity() {
     }
 
     private fun setupButtons() {
-        editButton!!.setOnClickListener { v: View? -> updateTask() }
-        deleteButton!!.setOnClickListener { v: View? -> confirmDelete() }
+        editButton!!.setOnClickListener { updateTask() }
+        deleteButton!!.setOnClickListener { confirmDelete() }
     }
 
     private fun setupStatusCheckBoxes() {
-        finishedCheckBox!!.setOnCheckedChangeListener { buttonView: CompoundButton?, isChecked: Boolean ->
-            finishedStatusText!!.text =
-                if (isChecked) "已完成" else "未完成"
+        // 修改：在状态文本上添加点击事件
+        val finishedCardView = findViewById<View>(R.id.card_finished)
+        finishedCardView.setOnClickListener {
+            // 直接调用finishTask切换任务状态
+            finishTask()
         }
 
-        delayedCheckBox!!.setOnCheckedChangeListener { buttonView: CompoundButton?, isChecked: Boolean ->
+        // 为复选框添加点击事件，也调用finishTask
+        finishedCheckBox!!.setOnCheckedChangeListener { _, isChecked ->
+            if (shouldRespondToFinishedChange) {
+                finishedStatusText!!.text = if (isChecked) "已完成" else "未完成"
+                finishTask()
+            }
+        }
+
+        delayedCheckBox!!.setOnCheckedChangeListener { _, isChecked ->
             delayedStatusText!!.text =
                 if (isChecked) "已延期" else "按时完成"
         }
     }
 
     private fun setupCategoryButtons() {
-        studyButton!!.setOnClickListener { v: View? -> categoryEditText!!.setText("学习") }
-        workButton!!.setOnClickListener { v: View? -> categoryEditText!!.setText("工作") }
-        lifeButton!!.setOnClickListener { v: View? -> categoryEditText!!.setText("生活") }
-        otherButton!!.setOnClickListener { v: View? -> categoryEditText!!.setText("其他") }
+        studyButton!!.setOnClickListener { categoryEditText!!.setText("学习") }
+        workButton!!.setOnClickListener { categoryEditText!!.setText("工作") }
+        lifeButton!!.setOnClickListener { categoryEditText!!.setText("生活") }
+        otherButton!!.setOnClickListener { categoryEditText!!.setText("其他") }
     }
 
-    private fun populateTaskData() {
-        // 使用当前任务的数据填充界面
-        val taskData = currentTask!!.all
-
+    private fun populateTaskData(task: TaskResponse) {
         // 填充标题
-        titleEditText!!.setText(taskData["title"] as String?)
+        titleEditText!!.setText(task.title)
 
         // 填充描述
-        if (taskData["description"] != null) {
-            descriptionEditText!!.setText(taskData["description"] as String?)
+        if (task.description != null) {
+            descriptionEditText!!.setText(task.description)
         }
 
         // 填充日期选择器
-        val date = taskData["date"] as Date?
+        val date = task.date
         if (date != null) {
             val cal = Calendar.getInstance()
             cal.time = date
@@ -239,16 +335,21 @@ class EditTaskActivity : AppCompatActivity() {
         }
 
         // 填充时间范围
-        val timeRange = taskData["timeRange"] as String?
+        val timeRange = task.time_range
         if (timeRange != null && timeRange != "未设定时间") {
             try {
-                // 解析时间范围，格式: "HH : MM -- HH : MM"
-                val parts =
-                    timeRange.split(" -- ".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
-                val startParts =
-                    parts[0].split(" : ".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
-                val endParts =
-                    parts[1].split(" : ".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+                // 检查分隔符，可能是 "--" 或 "-"
+                val delimiter = if (timeRange.contains("--")) "--" else "-"
+
+                // 分割时间范围
+                val parts = timeRange.split(delimiter).map { it.trim() }
+
+                // 提取小时和分钟，移除可能的空格
+                val startTimeStr = parts[0].replace(" ", "")
+                val endTimeStr = parts[1].replace(" ", "")
+
+                val startParts = startTimeStr.split(":")
+                val endParts = endTimeStr.split(":")
 
                 val startHour = startParts[0].toInt()
                 val startMinute = startParts[1].toInt()
@@ -263,6 +364,7 @@ class EditTaskActivity : AppCompatActivity() {
                 endHourPicker!!.value = endHour
                 endMinutePicker!!.value = endMinuteIndex
             } catch (e: Exception) {
+                Log.e(TAG, "解析时间范围失败: ${e.message}", e)
                 // 解析错误，使用默认值
                 startHourPicker!!.value = 9
                 startMinutePicker!!.value = 0
@@ -272,36 +374,32 @@ class EditTaskActivity : AppCompatActivity() {
         }
 
         // 填充地点
-        if (taskData["place"] != null) {
-            placeEditText!!.setText(taskData["place"] as String?)
+        if (task.place != null) {
+            placeEditText!!.setText(task.place)
         }
 
         // 设置重要性
-        importantSwitch!!.isChecked = (taskData["important"] as Boolean?)!!
+        importantSwitch!!.isChecked = task.is_important
 
         // 设置完成状态
-        if (taskData["finished"] != null) {
-            val finished = taskData["finished"] as Boolean
-            finishedCheckBox!!.isChecked = finished
-            finishedStatusText!!.text = if (finished) "已完成" else "未完成"
-        }
+        shouldRespondToFinishedChange = false  // 暂时禁用响应，防止触发API调用
+        finishedCheckBox!!.isChecked = task.is_finished
+        finishedStatusText!!.text = if (task.is_finished) "已完成" else "未完成"
+        shouldRespondToFinishedChange = true  // 恢复响应
 
         // 设置延期状态
-        if (taskData["delayed"] != null) {
-            val delayed = taskData["delayed"] as Boolean
-            delayedCheckBox!!.isChecked = delayed
-            delayedStatusText!!.text = if (delayed) "已延期" else "按时完成"
-        }
+        val delayed = task.is_delayed
+        delayedCheckBox!!.isChecked = delayed
+        delayedStatusText!!.text = if (delayed) "已延期" else "按时完成"
 
         // 设置分类标签
-        if (taskData["category"] != null) {
-            val category = taskData["category"] as String?
-            categoryEditText!!.setText(category)
+        if (task.category != null) {
+            categoryEditText!!.setText(task.category)
         }
     }
 
     private fun updateTask() {
-        val title = titleEditText!!.text.toString().trim { it <= ' ' }
+        val title = titleEditText!!.text.toString().trim()
 
         // 检查必填字段
         if (title.isEmpty()) {
@@ -315,13 +413,13 @@ class EditTaskActivity : AppCompatActivity() {
         val date = calendar.time
 
         // 获取描述
-        var description = descriptionEditText!!.text.toString().trim { it <= ' ' }
+        var description = descriptionEditText!!.text.toString().trim()
         if (description.isEmpty()) {
             description = "" // 默认空描述
         }
 
         // 获取地点
-        var place = placeEditText!!.text.toString().trim { it <= ' ' }
+        var place = placeEditText!!.text.toString().trim()
         if (place.isEmpty()) {
             place = "" // 默认空地点
         }
@@ -344,7 +442,7 @@ class EditTaskActivity : AppCompatActivity() {
         @SuppressLint("DefaultLocale") val endMinuteStr = String.format("%02d", endMinute)
 
         val timeRange =
-            "$startHourStr : $startMinuteStr -- $endHourStr : $endMinuteStr"
+            "$startHourStr:$startMinuteStr - $endHourStr:$endMinuteStr"
 
         // 计算持续时间（分钟）
         val durationMinutes = (endHour - startHour) * 60 + (endMinute - startMinute)
@@ -359,40 +457,46 @@ class EditTaskActivity : AppCompatActivity() {
         // 获取完成状态
         val finished = finishedCheckBox!!.isChecked
 
+        // 获取延期状态
+        val delayed = delayedCheckBox!!.isChecked
+
         // 获取标签
-        var category = categoryEditText!!.text.toString().trim { it <= ' ' }
+        var category = categoryEditText!!.text.toString().trim()
         if (category.isEmpty()) {
             category = "其他" // 默认标签
         }
 
-        // 更新任务
-        currentTask!!.edit(
-            title,
-            timeRange,
-            date,
-            durationMinutes,
-            important,
-            description,
-            place,
-            dueDate
+        // 准备请求对象
+        val request = com.example.big.models.CreateTaskRequest(
+            title = title,
+            time_range = timeRange,
+            date = date,
+            duration_minutes = durationMinutes,
+            is_important = important,
+            description = description,
+            place = place,
+            due_date = dueDate,
+            is_finished = finished,
+            is_delayed = delayed,
+            category = category
         )
-        currentTask!!.isFinished = finished
-        currentTask!!.place = place
-        currentTask!!.category = category
 
-        // 由于Task类中没有setDelayed方法，我们不能设置延期状态
-        // 您需要在Task类中添加这个方法：
-        // public void setDelayed(boolean delayed) {
-        //     this.delayed = delayed;
-        // }
-        Toast.makeText(this, "任务已更新: $title", Toast.LENGTH_SHORT).show()
+        showLoading()
+        lifecycleScope.launch {
+            try {
+                // 修改：直接使用字符串形式的 taskId，不尝试转换为整数
+                taskViewModel.updateTask(taskId, request)
+            } catch (e: Exception) {
+                Log.e(TAG, "更新任务时出现异常", e)
+                Toast.makeText(this@EditTaskActivity, "更新任务失败: ${e.message}", Toast.LENGTH_LONG).show()
+                hideLoading()
+            }
+        }
+    }
 
-        // 返回上一个Activity
-        val resultIntent = Intent()
-        resultIntent.putExtra("task_id", taskId)
-        resultIntent.putExtra("action", "edit")
-        setResult(RESULT_OK, resultIntent)
-        finish()
+    private fun formatDateForApi(date: Date): String {
+        val format = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        return format.format(date)
     }
 
     private fun confirmDelete() {
@@ -401,25 +505,36 @@ class EditTaskActivity : AppCompatActivity() {
             .setMessage("确定要删除这个事项吗？此操作不可撤销。")
             .setPositiveButton(
                 "删除"
-            ) { dialog: DialogInterface?, which: Int -> deleteTask() }
+            ) { _, _ -> deleteTask() }
             .setNegativeButton("取消", null)
             .show()
     }
 
     private fun deleteTask() {
-        val success = currentTask!!.delete()
+        showLoading()
+        lifecycleScope.launch {
+            try {
+                // 直接使用字符串形式的 taskId
+                taskViewModel.deleteTask(taskId)
+            } catch (e: Exception) {
+                Log.e(TAG, "删除任务时出现异常", e)
+                Toast.makeText(this@EditTaskActivity, "删除任务失败: ${e.message}", Toast.LENGTH_LONG).show()
+                hideLoading()
+            }
+        }
+    }
 
-        if (success) {
-            Toast.makeText(this, "事项已删除", Toast.LENGTH_SHORT).show()
-
-            // 返回上一个Activity并传递删除结果
-            val resultIntent = Intent()
-            resultIntent.putExtra("task_id", taskId)
-            resultIntent.putExtra("action", "delete")
-            setResult(RESULT_OK, resultIntent)
-            finish()
-        } else {
-            Toast.makeText(this, "删除失败，请稍后重试", Toast.LENGTH_SHORT).show()
+    private fun finishTask() {
+        showLoading()
+        lifecycleScope.launch {
+            try {
+                // 调用 ViewModel 的方法来切换任务完成状态
+                taskViewModel.finishTask(taskId)
+            } catch (e: Exception) {
+                Log.e(TAG, "完成任务时出现异常", e)
+                Toast.makeText(this@EditTaskActivity, "完成任务失败: ${e.message}", Toast.LENGTH_LONG).show()
+                hideLoading()
+            }
         }
     }
 }

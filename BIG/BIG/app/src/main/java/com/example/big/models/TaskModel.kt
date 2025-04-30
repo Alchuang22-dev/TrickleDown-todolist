@@ -5,32 +5,33 @@ import java.util.Date
 // 用于创建和更新任务的请求模型
 data class CreateTaskRequest(
     val title: String,
-    val timeRange: String,
+    val time_range: String,  // 使用下划线命名以匹配后端
     val date: Date,
-    val durationMinutes: Int,
-    val isImportant: Boolean, // 注意这里改为isImportant
+    val duration_minutes: Int,  // 使用下划线命名以匹配后端
+    val is_important: Boolean,  // 使用下划线命名以匹配后端
     val description: String? = null,
     val place: String? = null,
-    val dueDate: Date? = null, // 改为可空
+    val due_date: Date? = null,  // 使用下划线命名以匹配后端
     val category: String? = null,
-    val isFinished: Boolean = false // 注意这里改为isFinished
+    val is_finished: Boolean = false,  // 使用下划线命名以匹配后端
+    val is_delayed: Boolean = false
 )
 
 // 服务器响应的任务模型
 data class TaskResponse(
-    val id: Int, // 或String，取决于服务器返回的格式
-    val userId: String,
+    val id: String,  // 使用String类型匹配MongoDB的ObjectID
+    val user_id: String,  // 使用下划线命名以匹配后端
     val title: String,
-    val timeRange: String,
+    val time_range: String,  // 使用下划线命名以匹配后端
     val date: Date,
-    val durationMinutes: Int,
-    val isImportant: Boolean, // 注意这里改为isImportant
+    val duration_minutes: Int,  // 使用下划线命名以匹配后端
+    val is_important: Boolean,  // 使用下划线命名以匹配后端
     val description: String? = null,
     val place: String? = null,
-    val dueDate: Date? = null,
+    val due_date: Date? = null,  // 使用下划线命名以匹配后端
     val category: String? = null,
-    val isFinished: Boolean = false,
-    val isDelayed: Boolean = false,
-    val createdAt: Date,
-    val updatedAt: Date
+    val is_finished: Boolean = false,  // 使用下划线命名以匹配后端
+    val is_delayed: Boolean = false,  // 使用下划线命名以匹配后端
+    val created_at: Date,  // 使用下划线命名以匹配后端
+    val updated_at: Date  // 使用下划线命名以匹配后端
 )

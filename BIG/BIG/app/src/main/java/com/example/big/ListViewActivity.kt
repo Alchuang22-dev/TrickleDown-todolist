@@ -187,12 +187,12 @@ class ListViewActivity : AppCompatActivity() {
         val today = cal.time
 
         // 创建10个样例任务，按时间排序
-        val task1 = Task(12345001, "晨会", "08 : 30 -- 09 : 00", today, 30, false, "每日工作安排")
+        val task1 = Task("12345001", "晨会", "08 : 30 -- 09 : 00", today, 30, false, "每日工作安排")
         task1.place = "会议室B"
         task1.category = "工作"
 
         val task2 = Task(
-            12345002,
+            "12345002",
             "完成项目报告",
             "09 : 00 -- 11 : 00",
             today,
@@ -204,32 +204,32 @@ class ListViewActivity : AppCompatActivity() {
         task2.category = "工作"
 
         val task3 =
-            Task(12345003, "回复客户邮件", "10 : 00 -- 10 : 30", today, 30, false, "处理紧急问题")
+            Task("12345003", "回复客户邮件", "10 : 00 -- 10 : 30", today, 30, false, "处理紧急问题")
         task3.category = "工作"
         task3.isFinished = true
 
-        val task4 = Task(12345004, "午餐", "12 : 00 -- 13 : 00", today, 60, false, "与同事共进午餐")
+        val task4 = Task("12345004", "午餐", "12 : 00 -- 13 : 00", today, 60, false, "与同事共进午餐")
         task4.place = "公司餐厅"
         task4.category = "生活"
 
         val task5 =
-            Task(12345005, "客户会议", "14 : 00 -- 15 : 30", today, 90, true, "讨论新产品方案")
+            Task("12345005", "客户会议", "14 : 00 -- 15 : 30", today, 90, true, "讨论新产品方案")
         task5.place = "会议室A"
         task5.category = "工作"
 
         val task6 =
-            Task(12345006, "整理邮件", "16 : 00 -- 17 : 00", today, 60, false, "回复重要客户邮件")
+            Task("12345006", "整理邮件", "16 : 00 -- 17 : 00", today, 60, false, "回复重要客户邮件")
         task6.category = "工作"
 
-        val task7 = Task(12345007, "健身", "18 : 00 -- 19 : 00", today, 60, false, "每周锻炼计划")
+        val task7 = Task("12345007", "健身", "18 : 00 -- 19 : 00", today, 60, false, "每周锻炼计划")
         task7.place = "健身房"
         task7.category = "生活"
 
-        val task8 = Task(12345008, "阅读", "20 : 00 -- 21 : 00", today, 60, false, "学习新技能")
+        val task8 = Task("12345008", "阅读", "20 : 00 -- 21 : 00", today, 60, false, "学习新技能")
         task8.category = "学习"
 
         val task9 = Task(
-            12345009,
+            "12345009",
             "准备明天的演讲",
             "21 : 00 -- 22 : 00",
             today,
@@ -240,7 +240,7 @@ class ListViewActivity : AppCompatActivity() {
         task9.category = "工作"
 
         val task10 = Task(
-            12345010,
+            "12345010",
             "计划下周任务",
             "22 : 00 -- 23 : 00",
             today,

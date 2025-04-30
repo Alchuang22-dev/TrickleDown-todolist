@@ -1,5 +1,6 @@
 [versions]
 agp = "8.8.0"
+desugar_jdk_libs = "2.1.5"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
@@ -22,9 +23,11 @@ coroutines = "1.10.2"   # 与 Kotlin 2.0 兼容的稳定版 :contentReference[oa
 compose    = "1.8.0"    # runtime-livedata 的稳定版，对应 BOM 2024.04.00 :contentReference[oaicite:3]{index=3}
 composeCompiler = "1.5.8"
 glide         = "4.15.1"
-lifecycleKtx  = "2.8.0"    # 与 compose-viewmodel 统一
+lifecycleKtx  = "2.8.0"
+playServicesBasement = "18.7.0"    # 与 compose-viewmodel 统一
 
 [libraries]
+desugar_jdk_libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
@@ -61,6 +64,7 @@ compose-runtime-livedata = { group = "androidx.compose.runtime", name = "runtime
 
 # Coroutines
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+play-services-basement = { group = "com.google.android.gms", name = "play-services-basement", version.ref = "playServicesBasement" }
 [plugins]
 kotlin-android   = { id = "org.jetbrains.kotlin.android",   version.ref = "kotlin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
