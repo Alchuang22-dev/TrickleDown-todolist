@@ -134,7 +134,7 @@ class KanbanTimelineAdapter(
         taskStartHour: Int
     ) {
         // 修改3: 检查这个任务在这一天是否已经处理过，避免重复显示
-        val processed = processedTaskIds[task.id]
+        val processed = true
 
         // 如果不是任务开始的小时，且已经处理过这个任务，就跳过（避免重复）
         if (taskStartHour != hour && processed != null && processed) {
@@ -142,7 +142,7 @@ class KanbanTimelineAdapter(
         }
 
         // 标记这个任务ID已经处理过
-        processedTaskIds[task.id] = true
+        // processedTaskIds[task.id] = true
 
         val taskView = LayoutInflater.from(context).inflate(R.layout.item_task, null)
         val taskTitle: TextView = taskView.findViewById(R.id.task_title)

@@ -135,7 +135,7 @@ class TodayTasksActivity : AppCompatActivity() {
 
         // 重要任务
         val task1 = Task(
-            12345001,
+            "12345001",
             "完成项目报告",
             "09 : 00 -- 11 : 00",
             today,
@@ -147,25 +147,25 @@ class TodayTasksActivity : AppCompatActivity() {
         task1.category = "工作"
 
         val task2 =
-            Task(12345002, "客户会议", "14 : 00 -- 15 : 30", today, 90, true, "讨论新产品方案")
+            Task("12345002", "客户会议", "14 : 00 -- 15 : 30", today, 90, true, "讨论新产品方案")
         task2.place = "会议室A"
         task2.category = "工作"
 
         // 其他任务
-        val task3 = Task(12345003, "午餐", "12 : 00 -- 13 : 00", today, 60, false, "与同事共进午餐")
+        val task3 = Task("12345003", "午餐", "12 : 00 -- 13 : 00", today, 60, false, "与同事共进午餐")
         task3.category = "生活"
 
         val task4 =
-            Task(12345004, "整理邮件", "16 : 00 -- 17 : 00", today, 60, false, "回复重要客户邮件")
+            Task("12345004", "整理邮件", "16 : 00 -- 17 : 00", today, 60, false, "回复重要客户邮件")
         task4.category = "工作"
 
         // 已完成任务
-        val task5 = Task(12345005, "晨会", "08 : 30 -- 09 : 00", today, 30, false, "每日工作安排")
+        val task5 = Task("12345005", "晨会", "08 : 30 -- 09 : 00", today, 30, false, "每日工作安排")
         task5.isFinished = true
         task5.category = "工作"
 
         val task6 =
-            Task(12345006, "回复客户邮件", "10 : 00 -- 10 : 30", today, 30, false, "处理紧急问题")
+            Task("12345006", "回复客户邮件", "10 : 00 -- 10 : 30", today, 30, false, "处理紧急问题")
         task6.isFinished = true
         task6.category = "工作"
 
