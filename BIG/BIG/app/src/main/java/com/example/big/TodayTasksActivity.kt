@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Dialog
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.MenuItem
 import android.view.View
 import android.widget.Button
@@ -13,10 +14,18 @@ import android.widget.NumberPicker
 import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.big.models.TaskResponse
+import com.example.big.utils.TaskManager
+import com.example.big.utils.UserManager
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 class TodayTasksActivity : AppCompatActivity() {
     private var importantTasksRecyclerView: RecyclerView? = null
@@ -24,6 +33,7 @@ class TodayTasksActivity : AppCompatActivity() {
     private var completedTasksRecyclerView: RecyclerView? = null
 
     private var allTasks: MutableList<Task>? = null
+    private var originalTasks: MutableList<Task>? = null // 存储原始任务列表，用于筛选恢复
     private var importantTasks: MutableList<Task>? = null
     private var otherTasks: MutableList<Task>? = null
     private var completedTasks: MutableList<Task>? = null
@@ -31,6 +41,9 @@ class TodayTasksActivity : AppCompatActivity() {
     private var importantTasksAdapter: TaskAdapter? = null
     private var otherTasksAdapter: TaskAdapter? = null
     private var completedTasksAdapter: TaskAdapter? = null
+
+    private val TAG = "TodayTasksActivity"
+    private var isLoading = false
 
     // 时间筛选对话框中的控件
     private var yearPicker: NumberPicker? = null
@@ -55,19 +68,17 @@ class TodayTasksActivity : AppCompatActivity() {
 
         // 设置返回按钮
         val backButton = findViewById<ImageButton>(R.id.back_button)
-        backButton.setOnClickListener { v: View? -> finish() }
+        backButton.setOnClickListener { finish() }
 
         // 设置菜单按钮
         val menuButton = findViewById<ImageButton>(R.id.menu_button)
         menuButton.setOnClickListener { view: View ->
-            this.showFilterMenu(
-                view
-            )
+            showFilterMenu(view)
         }
 
         // 设置添加任务按钮
         val addTaskButton = findViewById<FloatingActionButton>(R.id.add_task_button)
-        addTaskButton.setOnClickListener { v: View? ->
+        addTaskButton.setOnClickListener {
             val intent = Intent(
                 this@TodayTasksActivity,
                 AddTaskActivity::class.java
@@ -75,11 +86,18 @@ class TodayTasksActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        // 初始化任务数据
-        initTaskData()
+        // 初始化空的任务列表
+        allTasks = ArrayList()
+        originalTasks = ArrayList()
+        importantTasks = ArrayList()
+        otherTasks = ArrayList()
+        completedTasks = ArrayList()
 
-        // 设置任务列表
+        // 设置任务列表适配器
         setupTaskLists()
+
+        // 加载任务数据
+        loadTaskData()
     }
 
     private fun initViews() {
@@ -87,9 +105,9 @@ class TodayTasksActivity : AppCompatActivity() {
         otherTasksRecyclerView = findViewById(R.id.other_tasks_recyclerview)
         completedTasksRecyclerView = findViewById(R.id.completed_tasks_recyclerview)
 
-        importantTasksRecyclerView?.setLayoutManager(LinearLayoutManager(this))
-        otherTasksRecyclerView?.setLayoutManager(LinearLayoutManager(this))
-        completedTasksRecyclerView?.setLayoutManager(LinearLayoutManager(this))
+        importantTasksRecyclerView?.layoutManager = LinearLayoutManager(this)
+        otherTasksRecyclerView?.layoutManager = LinearLayoutManager(this)
+        completedTasksRecyclerView?.layoutManager = LinearLayoutManager(this)
     }
 
     private fun showFilterMenu(view: View) {
@@ -120,71 +138,144 @@ class TodayTasksActivity : AppCompatActivity() {
         popup.show()
     }
 
-    private fun initTaskData() {
-        // 创建一些示例任务数据
-        allTasks = ArrayList()
+    private fun loadTaskData() {
+        showLoading()
 
-        val cal = Calendar.getInstance()
-        cal[Calendar.HOUR_OF_DAY] = 0
-        cal[Calendar.MINUTE] = 0
-        cal[Calendar.SECOND] = 0
-        cal[Calendar.MILLISECOND] = 0
-        val today = cal.time
+        // 使用协程从API获取今日任务
+        lifecycleScope.launch {
+            try {
+                val userId = UserManager.getUserId()
+                if (userId.isNullOrEmpty()) {
+                    showError("用户未登录")
+                    hideLoading()
+                    return@launch
+                }
 
-        // 使用8位数ID
+                // 获取今天的日期，格式化为API需要的格式 (yyyy-MM-dd)
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                val todayDate = dateFormat.format(Date())
 
-        // 重要任务
-        val task1 = Task(
-            "12345001",
-            "完成项目报告",
-            "09 : 00 -- 11 : 00",
-            today,
-            120,
-            true,
-            "需要提交给经理审核"
-        )
-        task1.place = "办公室"
-        task1.category = "工作"
+                // 调用API获取今日任务
+                val response = TaskManager.getTasksByDate(userId, todayDate)
 
-        val task2 =
-            Task("12345002", "客户会议", "14 : 00 -- 15 : 30", today, 90, true, "讨论新产品方案")
-        task2.place = "会议室A"
-        task2.category = "工作"
+                when (response) {
+                    is TaskManager.Result.Success -> {
+                        val taskResponses = response.data
+                        Log.d(TAG, "获取到 ${taskResponses.size} 个任务")
 
-        // 其他任务
-        val task3 = Task("12345003", "午餐", "12 : 00 -- 13 : 00", today, 60, false, "与同事共进午餐")
-        task3.category = "生活"
+                        // 将TaskResponse转换为Task对象
+                        allTasks = convertTaskResponsesToTasks(taskResponses)
+                        originalTasks = ArrayList(allTasks!!)
 
-        val task4 =
-            Task("12345004", "整理邮件", "16 : 00 -- 17 : 00", today, 60, false, "回复重要客户邮件")
-        task4.category = "工作"
+                        // 分类并更新UI
+                        categorizeTasksForDisplay()
 
-        // 已完成任务
-        val task5 = Task("12345005", "晨会", "08 : 30 -- 09 : 00", today, 30, false, "每日工作安排")
-        task5.isFinished = true
-        task5.category = "工作"
+                        runOnUiThread {
+                            updateTaskLists()
+                            hideLoading()
+                        }
+                    }
+                    is TaskManager.Result.Error -> {
+                        Log.e(TAG, "获取任务失败: ${response.message}")
+                        showError("获取任务失败: ${response.message}")
+                        hideLoading()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "获取任务时出现异常", e)
+                showError("获取任务时出现异常: ${e.message}")
+                hideLoading()
+            }
+        }
+    }
 
-        val task6 =
-            Task("12345006", "回复客户邮件", "10 : 00 -- 10 : 30", today, 30, false, "处理紧急问题")
-        task6.isFinished = true
-        task6.category = "工作"
+    private fun convertTaskResponsesToTasks(taskResponses: List<TaskResponse>): MutableList<Task> {
+        val tasks: MutableList<Task> = ArrayList()
 
-        // 添加到列表
-        allTasks?.add(task1)
-        allTasks?.add(task2)
-        allTasks?.add(task3)
-        allTasks?.add(task4)
-        allTasks?.add(task5)
-        allTasks?.add(task6)
+        for (taskResponse in taskResponses) {
+            val task = Task(
+                id = taskResponse.id,
+                title = taskResponse.title,
+                timeRange = taskResponse.time_range ?: "未设定时间",
+                date = taskResponse.date,
+                durationMinutes = taskResponse.duration_minutes,
+                important = taskResponse.is_important,
+                description = taskResponse.description
+            )
 
-        // 分类
-        categorizeTasksForDisplay()
+            // 设置额外属性
+            task.isFinished = taskResponse.is_finished
+            task.isDelayed = taskResponse.is_delayed
+            task.place = taskResponse.place
+            task.category = taskResponse.category
+
+            tasks.add(task)
+        }
+
+        // 按时间排序
+        sortTasksByTime(tasks)
+
+        return tasks
+    }
+
+    private fun sortTasksByTime(tasks: MutableList<Task>) {
+        tasks.sortWith { t1, t2 ->
+            try {
+                if (t1.timeRange == "未设定时间" && t2.timeRange == "未设定时间") {
+                    return@sortWith 0
+                } else if (t1.timeRange == "未设定时间") {
+                    return@sortWith 1 // 未设定时间的放在后面
+                } else if (t2.timeRange == "未设定时间") {
+                    return@sortWith -1 // 未设定时间的放在后面
+                }
+
+                // 检查分隔符，可能是 "--" 或 "-"
+                val delimiter1 = if (t1.timeRange.contains("--")) "--" else "-"
+                val delimiter2 = if (t2.timeRange.contains("--")) "--" else "-"
+
+                // 分割时间范围
+                val startTimeStr1 = t1.timeRange.split(delimiter1)[0].trim()
+                val startTimeStr2 = t2.timeRange.split(delimiter2)[0].trim()
+
+                // 提取小时和分钟，移除可能的空格
+                val cleanTimeStr1 = startTimeStr1.replace(" ", "")
+                val cleanTimeStr2 = startTimeStr2.replace(" ", "")
+
+                val hourMinute1 = cleanTimeStr1.split(":")
+                val hourMinute2 = cleanTimeStr2.split(":")
+
+                // 转换为分钟数
+                val hours1 = hourMinute1[0].toInt()
+                val minutes1 = hourMinute1[1].toInt()
+                val hours2 = hourMinute2[0].toInt()
+                val minutes2 = hourMinute2[1].toInt()
+
+                (hours1 * 60 + minutes1) - (hours2 * 60 + minutes2)  // 比较分钟数
+            } catch (e: Exception) {
+                Log.e(TAG, "解析任务时间失败: ${e.message} for timeRange1: ${t1.timeRange}, timeRange2: ${t2.timeRange}", e)
+                0  // 无法比较时返回0
+            }
+        }
+    }
+
+    private fun showLoading() {
+        isLoading = true
+        // 在实际应用中，这里可以显示进度条
+    }
+
+    private fun hideLoading() {
+        isLoading = false
+        // 在实际应用中，这里可以隐藏进度条
+    }
+
+    private fun showError(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
     private fun categorizeTasksForDisplay() {
-        importantTasks = ArrayList()
-        otherTasks = ArrayList()
-        completedTasks = ArrayList()
+        importantTasks?.clear()
+        otherTasks?.clear()
+        completedTasks?.clear()
 
         for (task in allTasks!!) {
             if (task.isFinished) {
@@ -202,15 +293,27 @@ class TodayTasksActivity : AppCompatActivity() {
         otherTasksAdapter = TaskAdapter(otherTasks ?: emptyList(), this)
         completedTasksAdapter = TaskAdapter(completedTasks ?: emptyList(), this)
 
-        importantTasksRecyclerView!!.adapter = importantTasksAdapter
-        otherTasksRecyclerView!!.adapter = otherTasksAdapter
-        completedTasksRecyclerView!!.adapter = completedTasksAdapter
+        importantTasksRecyclerView?.adapter = importantTasksAdapter
+        otherTasksRecyclerView?.adapter = otherTasksAdapter
+        completedTasksRecyclerView?.adapter = completedTasksAdapter
+    }
+
+    private fun updateTaskLists() {
+        // 更新适配器数据
+        importantTasksAdapter = TaskAdapter(importantTasks ?: emptyList(), this)
+        otherTasksAdapter = TaskAdapter(otherTasks ?: emptyList(), this)
+        completedTasksAdapter = TaskAdapter(completedTasks ?: emptyList(), this)
+
+        // 设置到RecyclerView
+        importantTasksRecyclerView?.adapter = importantTasksAdapter
+        otherTasksRecyclerView?.adapter = otherTasksAdapter
+        completedTasksRecyclerView?.adapter = completedTasksAdapter
     }
 
     // 筛选未完成的任务
     private fun filterUnfinishedTasks() {
         val unfinishedTasks: MutableList<Task> = ArrayList()
-        for (task in allTasks!!) {
+        for (task in originalTasks!!) {
             if (!task.isFinished) {
                 unfinishedTasks.add(task)
             }
@@ -221,7 +324,7 @@ class TodayTasksActivity : AppCompatActivity() {
     // 筛选重要任务
     private fun filterImportantTasks() {
         val filteredTasks: MutableList<Task> = ArrayList()
-        for (task in allTasks!!) {
+        for (task in originalTasks!!) {
             if (task.isImportant) {
                 filteredTasks.add(task)
             }
@@ -253,10 +356,10 @@ class TodayTasksActivity : AppCompatActivity() {
         setupTimePickers()
 
         // 设置重置按钮
-        resetButton.setOnClickListener { v: View? -> resetTimeFilters() }
+        resetButton.setOnClickListener { resetTimeFilters() }
 
         // 设置确认按钮
-        confirmButton.setOnClickListener { v: View? ->
+        confirmButton.setOnClickListener {
             filterTasksByTime()
             dialog.dismiss()
         }
@@ -286,12 +389,12 @@ class TodayTasksActivity : AppCompatActivity() {
         dayPicker!!.value = day
 
         // 设置年月变化监听器，更新日期选择器
-        yearPicker!!.setOnValueChangedListener { picker: NumberPicker?, oldVal: Int, newVal: Int ->
+        yearPicker!!.setOnValueChangedListener { _, _, newVal ->
             selectedYear = newVal
             updateDayPicker()
         }
 
-        monthPicker!!.setOnValueChangedListener { picker: NumberPicker?, oldVal: Int, newVal: Int ->
+        monthPicker!!.setOnValueChangedListener { _, _, newVal ->
             selectedMonth = newVal - 1 // 月份从0开始，所以-1
             updateDayPicker()
         }
@@ -337,10 +440,10 @@ class TodayTasksActivity : AppCompatActivity() {
         endMinutePicker!!.displayedValues = minutes
 
         // 设置结束时间的监听器，确保结束时间晚于开始时间
-        endHourPicker!!.setOnValueChangedListener { picker: NumberPicker?, oldVal: Int, newVal: Int -> validateEndTime() }
-        endMinutePicker!!.setOnValueChangedListener { picker: NumberPicker?, oldVal: Int, newVal: Int -> validateEndTime() }
-        startHourPicker!!.setOnValueChangedListener { picker: NumberPicker?, oldVal: Int, newVal: Int -> validateEndTime() }
-        startMinutePicker!!.setOnValueChangedListener { picker: NumberPicker?, oldVal: Int, newVal: Int -> validateEndTime() }
+        endHourPicker!!.setOnValueChangedListener { _, _, _ -> validateEndTime() }
+        endMinutePicker!!.setOnValueChangedListener { _, _, _ -> validateEndTime() }
+        startHourPicker!!.setOnValueChangedListener { _, _, _ -> validateEndTime() }
+        startMinutePicker!!.setOnValueChangedListener { _, _, _ -> validateEndTime() }
     }
 
     private fun validateEndTime() {
@@ -408,7 +511,7 @@ class TodayTasksActivity : AppCompatActivity() {
 
         // 筛选任务
         val filteredTasks: MutableList<Task> = ArrayList()
-        for (task in allTasks!!) {
+        for (task in originalTasks!!) {
             // 检查日期匹配
             var dateMatches = true
             if (task.date != null) {
@@ -424,16 +527,26 @@ class TodayTasksActivity : AppCompatActivity() {
 
             // 检查时间范围匹配
             var timeMatches = true
-            if (task.timeRange != null && !task.timeRange.isEmpty() && task.timeRange != "未设定时间") {
-                // 简单字符串比较（实际应用中可能需要更复杂的时间解析）
-                val taskStart = task.timeRange.split(" -- ".toRegex())
-                    .dropLastWhile { it.isEmpty() }.toTypedArray()[0].trim { it <= ' ' }
-                val taskEnd = task.timeRange.split(" -- ".toRegex()).dropLastWhile { it.isEmpty() }
-                    .toTypedArray()[1].trim { it <= ' ' }
+            if (task.timeRange != null && task.timeRange.isNotEmpty() && task.timeRange != "未设定时间") {
+                try {
+                    // 检查分隔符，可能是 "--" 或 "-"
+                    val delimiter = if (task.timeRange.contains("--")) "--" else "-"
 
-                // 时间重叠检查
-                timeMatches =
-                    !(taskEnd.compareTo(startTimeStr) < 0 || taskStart.compareTo(endTimeStr) > 0)
+                    // 分割时间范围
+                    val parts = task.timeRange.split(delimiter).map { it.trim() }
+
+                    // 提取小时和分钟
+                    val taskStartTimeStr = parts[0]
+                    val taskEndTimeStr = parts[1]
+
+                    // 时间重叠检查
+                    val isOverlap =
+                        !(taskEndTimeStr.compareTo(startTimeStr) < 0 || taskStartTimeStr.compareTo(endTimeStr) > 0)
+                    timeMatches = isOverlap
+                } catch (e: Exception) {
+                    Log.e(TAG, "解析时间范围失败: ${e.message} for timeRange: ${task.timeRange}", e)
+                    timeMatches = false
+                }
             }
 
             // 只有两个条件都匹配才添加到结果中
@@ -473,16 +586,16 @@ class TodayTasksActivity : AppCompatActivity() {
         val confirmButton = dialog.findViewById<Button>(R.id.confirm_button)
 
         // 设置类别按钮点击事件
-        studyButton.setOnClickListener { v: View? -> categoryEditText.setText("学习") }
-        workButton.setOnClickListener { v: View? -> categoryEditText.setText("工作") }
-        lifeButton.setOnClickListener { v: View? -> categoryEditText.setText("生活") }
-        otherButton.setOnClickListener { v: View? -> categoryEditText.setText("其他") }
+        studyButton.setOnClickListener { categoryEditText.setText("学习") }
+        workButton.setOnClickListener { categoryEditText.setText("工作") }
+        lifeButton.setOnClickListener { categoryEditText.setText("生活") }
+        otherButton.setOnClickListener { categoryEditText.setText("其他") }
 
         // 设置重置按钮
-        resetButton.setOnClickListener { v: View? -> categoryEditText.setText("") }
+        resetButton.setOnClickListener { categoryEditText.setText("") }
 
         // 设置确认按钮
-        confirmButton.setOnClickListener { v: View? ->
+        confirmButton.setOnClickListener {
             var category = categoryEditText.text.toString().trim { it <= ' ' }
             if (category.isEmpty()) {
                 category = "其他"
@@ -496,7 +609,7 @@ class TodayTasksActivity : AppCompatActivity() {
 
     private fun filterTasksByCategory(category: String) {
         val filteredTasks: MutableList<Task> = ArrayList()
-        for (task in allTasks!!) {
+        for (task in originalTasks!!) {
             if (task.category != null && task.category == category) {
                 filteredTasks.add(task)
             }
@@ -517,37 +630,23 @@ class TodayTasksActivity : AppCompatActivity() {
     }
 
     private fun filterNone() {
-        updateAllTaskLists(allTasks!!)
+        updateAllTaskLists(originalTasks!!)
     }
 
-    @SuppressLint("NotifyDataSetChanged")
     private fun updateAllTaskLists(filteredTasks: List<Task>) {
         // 清空当前列表
-        importantTasks!!.clear()
-        otherTasks!!.clear()
-        completedTasks!!.clear()
+        allTasks = ArrayList(filteredTasks)
 
         // 重新分类
-        for (task in filteredTasks) {
-            if (task.isFinished) {
-                completedTasks!!.add(task)
-            } else if (task.isImportant) {
-                importantTasks!!.add(task)
-            } else {
-                otherTasks!!.add(task)
-            }
-        }
+        categorizeTasksForDisplay()
 
-        // 通知适配器数据已更改
-        importantTasksAdapter!!.notifyDataSetChanged()
-        otherTasksAdapter!!.notifyDataSetChanged()
-        completedTasksAdapter!!.notifyDataSetChanged()
+        // 更新UI
+        updateTaskLists()
     }
 
     override fun onResume() {
         super.onResume()
-        // 刷新数据（实际应用中，这里应该从数据库重新加载数据）
-        initTaskData()
-        setupTaskLists()
+        // 在恢复活动时重新加载任务，以获取最新数据
+        loadTaskData()
     }
 }
