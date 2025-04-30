@@ -57,6 +57,9 @@ class EditTaskActivity : AppCompatActivity() {
     private lateinit var taskViewModel: TaskViewModel
     private val TAG = "EditTaskActivity"
 
+    // 标记是否需要响应完成状态更改
+    private var shouldRespondToFinishedChange = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         this.enableEdgeToEdge()
@@ -101,8 +104,18 @@ class EditTaskActivity : AppCompatActivity() {
                 is TaskManager.Result.Success -> {
                     hideLoading()
                     Toast.makeText(this, "任务更新成功", Toast.LENGTH_SHORT).show()
-                    setResult(RESULT_OK)
-                    finish()
+
+                    // 如果是完成状态变更，更新UI而不是关闭页面
+                    if (result.data != null) {
+                        currentTask = result.data
+                        // 暂时禁用响应，防止循环触发
+                        shouldRespondToFinishedChange = false
+                        updateFinishedUI(result.data.is_finished)
+                        shouldRespondToFinishedChange = true
+                    } else {
+                        setResult(RESULT_OK)
+                        finish()
+                    }
                 }
                 is TaskManager.Result.Error -> {
                     hideLoading()
@@ -138,6 +151,11 @@ class EditTaskActivity : AppCompatActivity() {
                 hideLoading()
             }
         }
+    }
+
+    private fun updateFinishedUI(isFinished: Boolean) {
+        finishedCheckBox?.isChecked = isFinished
+        finishedStatusText?.text = if (isFinished) "已完成" else "未完成"
     }
 
     private fun showLoading() {
@@ -268,9 +286,19 @@ class EditTaskActivity : AppCompatActivity() {
     }
 
     private fun setupStatusCheckBoxes() {
+        // 修改：在状态文本上添加点击事件
+        val finishedCardView = findViewById<View>(R.id.card_finished)
+        finishedCardView.setOnClickListener {
+            // 直接调用finishTask切换任务状态
+            finishTask()
+        }
+
+        // 为复选框添加点击事件，也调用finishTask
         finishedCheckBox!!.setOnCheckedChangeListener { _, isChecked ->
-            finishedStatusText!!.text =
-                if (isChecked) "已完成" else "未完成"
+            if (shouldRespondToFinishedChange) {
+                finishedStatusText!!.text = if (isChecked) "已完成" else "未完成"
+                finishTask()
+            }
         }
 
         delayedCheckBox!!.setOnCheckedChangeListener { _, isChecked ->
@@ -354,8 +382,10 @@ class EditTaskActivity : AppCompatActivity() {
         importantSwitch!!.isChecked = task.is_important
 
         // 设置完成状态
+        shouldRespondToFinishedChange = false  // 暂时禁用响应，防止触发API调用
         finishedCheckBox!!.isChecked = task.is_finished
         finishedStatusText!!.text = if (task.is_finished) "已完成" else "未完成"
+        shouldRespondToFinishedChange = true  // 恢复响应
 
         // 设置延期状态
         val delayed = task.is_delayed
@@ -489,6 +519,20 @@ class EditTaskActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Log.e(TAG, "删除任务时出现异常", e)
                 Toast.makeText(this@EditTaskActivity, "删除任务失败: ${e.message}", Toast.LENGTH_LONG).show()
+                hideLoading()
+            }
+        }
+    }
+
+    private fun finishTask() {
+        showLoading()
+        lifecycleScope.launch {
+            try {
+                // 调用 ViewModel 的方法来切换任务完成状态
+                taskViewModel.finishTask(taskId)
+            } catch (e: Exception) {
+                Log.e(TAG, "完成任务时出现异常", e)
+                Toast.makeText(this@EditTaskActivity, "完成任务失败: ${e.message}", Toast.LENGTH_LONG).show()
                 hideLoading()
             }
         }

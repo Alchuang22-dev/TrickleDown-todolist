@@ -127,7 +127,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun finishTask(taskId: Int) {
+    fun finishTask(taskId: String) {
         viewModelScope.launch {
             _loading.value = true
             _error.value = null
