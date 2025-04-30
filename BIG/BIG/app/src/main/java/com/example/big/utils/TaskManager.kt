@@ -103,19 +103,20 @@ object TaskManager {
     }
 
     // 创建新任务
-    suspend fun createTask(request: CreateTaskRequest): Result<TaskResponse> {
+    suspend fun createTask(request: CreateTaskRequest): Result<String> {  // 返回类型改为任务ID字符串
         return withContext(Dispatchers.IO) {
             try {
                 val userId = getCurrentUserId()
                 val response = TaskApiClient.taskApiService.createTask(userId, request)
                 if (response.isSuccessful && response.body() != null) {
-                    val newTask = response.body()!!
-                    // 更新缓存
-                    val cachedTasks = getCachedTasks().toMutableList()
-                    cachedTasks.add(newTask)
-                    cacheTaskList(cachedTasks)
-                    Log.d(TAG, "成功创建任务: ${newTask.title}")
-                    Result.Success(newTask)
+                    val createResponse = response.body()!!
+                    Log.d(TAG, "成功创建任务: ${createResponse.message}")
+                    // 在 TaskManager.createTask 中
+
+                    // 刷新缓存以获取新创建的任务
+                    refreshCache()
+
+                    Result.Success(createResponse.task_id)  // 返回任务ID
                 } else {
                     Log.e(TAG, "创建任务失败: ${response.code()} - ${response.errorBody()?.string()}")
                     Result.Error("创建任务失败: ${response.code()}")
@@ -126,7 +127,6 @@ object TaskManager {
             }
         }
     }
-
     // 更新任务
     suspend fun updateTask(taskId: Int, request: CreateTaskRequest): Result<TaskResponse> {
         return withContext(Dispatchers.IO) {
@@ -136,7 +136,7 @@ object TaskManager {
                     val updatedTask = response.body()!!
                     // 更新缓存
                     val cachedTasks = getCachedTasks().toMutableList()
-                    val index = cachedTasks.indexOfFirst { it.id == taskId }
+                    val index = cachedTasks.indexOfFirst { it.id == taskId.toString()  }
                     if (index != -1) {
                         cachedTasks[index] = updatedTask
                         cacheTaskList(cachedTasks)
@@ -163,7 +163,7 @@ object TaskManager {
                     val finishedTask = response.body()!!
                     // 更新缓存
                     val cachedTasks = getCachedTasks().toMutableList()
-                    val index = cachedTasks.indexOfFirst { it.id == taskId }
+                    val index = cachedTasks.indexOfFirst { it.id == taskId.toString()  }
                     if (index != -1) {
                         cachedTasks[index] = finishedTask
                         cacheTaskList(cachedTasks)
@@ -213,7 +213,7 @@ object TaskManager {
                 if (response.isSuccessful) {
                     // 更新缓存
                     val cachedTasks = getCachedTasks().toMutableList()
-                    cachedTasks.removeIf { it.id == taskId }
+                    cachedTasks.removeIf { it.id == taskId.toString()  }
                     cacheTaskList(cachedTasks)
                     Log.d(TAG, "成功删除任务 ID: $taskId")
                     Result.Success(true)
