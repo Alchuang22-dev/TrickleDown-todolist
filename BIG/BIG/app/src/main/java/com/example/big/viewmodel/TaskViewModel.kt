@@ -70,23 +70,38 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
             try {
                 val result = TaskManager.createTask(request)
-                _taskOperationResult.value = result
 
-                // 刷新任务列表
-                if (result is Result.Success) {
-                    loadTasks(true)
-                } else if (result is Result.Error) {
-                    _error.value = result.message
+                // 由于返回值类型变化，需要修改结果处理
+                when (result) {
+                    is Result.Success -> {
+                        _taskCreationSuccess.value = true  // 新增一个LiveData来表示创建成功
+                        val taskId = result.data  // 这是任务ID字符串
+                        Log.d(TAG, "任务创建成功，ID: $taskId")
+
+                        // 刷新任务列表
+                        loadTasks(true)
+                    }
+                    is Result.Error -> {
+                        _error.value = result.message
+                        _taskCreationSuccess.value = false
+                    }
+                    is Result.Loading -> {
+                        // 已经设置为加载中
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "创建任务时发生错误: ${e.message}", e)
                 _error.value = e.message ?: "创建任务时发生未知错误"
-                _taskOperationResult.value = Result.Error(e.toString())
+                _taskCreationSuccess.value = false
             } finally {
                 _loading.value = false
             }
         }
     }
+
+    // 添加这个LiveData用于通知创建成功
+    private val _taskCreationSuccess = MutableLiveData<Boolean>()
+    val taskCreationSuccess: LiveData<Boolean> = _taskCreationSuccess
 
     fun updateTask(taskId: Int, request: CreateTaskRequest) {
         viewModelScope.launch {

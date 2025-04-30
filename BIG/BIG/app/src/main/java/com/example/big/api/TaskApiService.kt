@@ -5,6 +5,11 @@ import com.example.big.models.TaskResponse
 import retrofit2.Response
 import retrofit2.http.*
 
+data class CreateTaskResponse(
+    val task_id: String,
+    val message: String
+)
+
 interface TaskApiService {
     // 获取用户的所有任务（修改为包含用户ID）
     @GET("api/tasks/users/{userId}")
@@ -19,7 +24,7 @@ interface TaskApiService {
     suspend fun createTask(
         @Path("userId") userId: String,
         @Body request: CreateTaskRequest
-    ): Response<TaskResponse>
+    ): Response<CreateTaskResponse>
 
     // 更新任务
     @PUT("api/tasks/{taskId}")
