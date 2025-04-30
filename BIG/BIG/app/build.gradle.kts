@@ -1,4 +1,3 @@
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -32,6 +31,8 @@ android {
         }
     }
     compileOptions {
+        // 修复：移除重复配置，添加反糖支持
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -40,6 +41,7 @@ android {
     }
     buildFeatures {
         compose = true
+        viewBinding = true
     }
     packaging {
         resources {
@@ -49,6 +51,9 @@ android {
 }
 
 dependencies {
+    // 添加反糖支持库
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
+
     // Kotlin BOM
     implementation(platform(libs.kotlin.bom))
 
@@ -75,6 +80,7 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)
+    implementation(libs.play.services.basement)
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 

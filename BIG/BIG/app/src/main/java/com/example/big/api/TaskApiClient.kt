@@ -1,6 +1,7 @@
 package com.example.big.api
 
 import com.example.big.utils.TokenManager
+import com.google.gson.FieldNamingPolicy
 import com.google.gson.GsonBuilder
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -11,11 +12,11 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object TaskApiClient {
-    private const val BASE_URL = "https://todo.dechelper.com/" // 确保这个URL是正确的
+    private const val BASE_URL = "https://todo.dechelper.com/" // 替换为您的实际API基础URL
 
-    // 创建日志拦截器
+    // 创建详细的日志拦截器
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
+        level = HttpLoggingInterceptor.Level.BODY  // 记录完整的请求和响应内容
     }
 
     // 创建认证拦截器
@@ -23,10 +24,6 @@ object TaskApiClient {
         override fun intercept(chain: Interceptor.Chain): Response {
             val originalRequest = chain.request()
             val token = TokenManager.getAccessToken()
-
-            // 打印原始请求URL（调试用）
-            // val url = originalRequest.url().toString()
-            // println("Original Request URL: $url")
 
             // 如果有令牌，添加到请求头中
             return if (token != null) {
@@ -43,15 +40,16 @@ object TaskApiClient {
     // 配置OkHttpClient
     private val client = OkHttpClient.Builder()
         .addInterceptor(authInterceptor)
-        .addInterceptor(loggingInterceptor) // 添加日志拦截器
+        .addInterceptor(loggingInterceptor)
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    // 创建Gson配置，处理日期格式
+    // 创建Gson配置
     private val gson = GsonBuilder()
         .setDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+        .setFieldNamingPolicy(FieldNamingPolicy.IDENTITY)  // 保持字段原始命名
         .create()
 
     // 创建Retrofit实例
