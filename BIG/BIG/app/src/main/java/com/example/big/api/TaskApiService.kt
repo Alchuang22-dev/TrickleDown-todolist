@@ -25,7 +25,11 @@ data class TaskListResponse(
 interface TaskApiService {
     // 获取用户的所有任务
     @GET("api/tasks/users/{userId}")
-    suspend fun getAllTasks(@Path("userId") userId: String): Response<TaskListResponse>
+    suspend fun getAllTasks(
+        @Path("userId") userId: String,
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 10
+    ): Response<TaskListResponse>
 
     // 获取任务详情
     @GET("api/tasks/{taskId}")

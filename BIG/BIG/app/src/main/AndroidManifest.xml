@@ -35,7 +35,7 @@
             android:name=".ListViewActivity"
             android:exported="false" />
         <activity
-            android:name=".KanbanViewActivity"
+            android:name=".KanbanViewActivityCompose"
             android:exported="false" />
         <activity
             android:name=".TodayTasksActivity"
