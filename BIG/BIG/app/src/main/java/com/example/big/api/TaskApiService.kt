@@ -2,6 +2,9 @@ package com.example.big.api
 
 import com.example.big.models.CreateTaskRequest
 import com.example.big.models.TaskResponse
+import com.example.big.models.TodayFocusStatisticsResponse
+import com.example.big.models.TotalFocusStatisticsResponse
+import com.example.big.models.FocusDistributionResponse
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -17,6 +20,7 @@ data class TaskListResponse(
     val page: Int,
     val limit: Int
 )
+
 
 interface TaskApiService {
     // 获取用户的所有任务
@@ -62,4 +66,24 @@ interface TaskApiService {
         @Path("userId") userId: String,
         @Query("date") date: String
     ): Response<List<TaskResponse>>
+
+    // 今日专注统计
+    @GET("/api/tasks/users/{userId}/focus/today")
+    suspend fun getTodayFocusStatistics(
+        @Path("userId") userId: String,
+        @Query("date") date: String
+    ): Response<TodayFocusStatisticsResponse>
+
+    // 累计专注统计
+    @GET("/api/tasks/users/{userId}/focus/total")
+    suspend fun getTotalFocusStatistics(@Path("userId") userId: String): Response<TotalFocusStatisticsResponse>
+
+    // 专注时长分布
+    @GET("/api/tasks/users/{userId}/focus/distribution")
+    suspend fun getFocusDistribution(
+        @Path("userId") userId: String,
+        @Query("period") period: String, // 'day', 'week', 'month'
+        @Query("start_date") startDate: String? = null,
+        @Query("endDate") endDate: String? = null
+    ): Response<FocusDistributionResponse>
 }

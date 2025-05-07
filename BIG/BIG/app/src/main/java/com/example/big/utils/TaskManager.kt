@@ -6,6 +6,9 @@ import android.util.Log
 import com.example.big.api.TaskApiClient
 import com.example.big.models.CreateTaskRequest
 import com.example.big.models.TaskResponse
+import com.example.big.models.TodayFocusStatisticsResponse
+import com.example.big.models.TotalFocusStatisticsResponse
+import com.example.big.models.FocusDistributionResponse
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
@@ -323,6 +326,80 @@ object TaskManager {
             } catch (e: Exception) {
                 Log.e(TAG, "获取日期任务时发生错误: ${e.message}", e)
                 Result.Error(e.message ?: "获取日期任务时发生未知错误")
+            }
+        }
+    }
+
+    // 获取今日专注统计
+    suspend fun getTodayFocusStatistics(): Result<TodayFocusStatisticsResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val userId = getCurrentUserId()
+                val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                val todayDate = dateFormat.format(java.util.Date())
+                val response = TaskApiClient.taskApiService.getTodayFocusStatistics(userId, todayDate)
+
+                if (response.isSuccessful && response.body() != null) {
+                    val stats = response.body()!!
+                    Log.d(TAG, "获取今日专注统计成功")
+                    Result.Success(stats)
+                } else {
+                    Log.e(TAG, "获取今日专注统计失败: ${response.code()} - ${response.errorBody()?.string()}")
+                    Result.Error("获取今日专注统计失败: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "获取今日专注统计时发生错误: ${e.message}", e)
+                Result.Error(e.message ?: "获取今日专注统计时发生未知错误")
+            }
+        }
+    }
+
+    // 获取累计专注统计
+    suspend fun getTotalFocusStatistics(): Result<TotalFocusStatisticsResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val userId = getCurrentUserId()
+                val response = TaskApiClient.taskApiService.getTotalFocusStatistics(userId)
+
+                if (response.isSuccessful && response.body() != null) {
+                    val stats = response.body()!!
+                    Log.d(TAG, "获取累计专注统计成功")
+                    Result.Success(stats)
+                } else {
+                    Log.e(TAG, "获取累计专注统计失败: ${response.code()} - ${response.errorBody()?.string()}")
+                    Result.Error("获取累计专注统计失败: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "获取累计专注统计时发生错误: ${e.message}", e)
+                Result.Error(e.message ?: "获取累计专注统计时发生未知错误")
+            }
+        }
+    }
+
+    // 获取专注时长分布
+    suspend fun getFocusDistribution(
+        type: String,
+        startDate: String? = null,
+        endDate: String? = null
+    ): Result<FocusDistributionResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val userId = getCurrentUserId()
+                val response = TaskApiClient.taskApiService.getFocusDistribution(
+                    userId, type, startDate, endDate
+                )
+
+                if (response.isSuccessful && response.body() != null) {
+                    val distribution = response.body()!!
+                    Log.d(TAG, "获取专注时长分布成功，类型: $type")
+                    Result.Success(distribution)
+                } else {
+                    Log.e(TAG, "获取专注时长分布失败: ${response.code()} - ${response.errorBody()?.string()}")
+                    Result.Error("获取专注时长分布失败: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "获取专注时长分布时发生错误: ${e.message}", e)
+                Result.Error(e.message ?: "获取专注时长分布时发生未知错误")
             }
         }
     }
