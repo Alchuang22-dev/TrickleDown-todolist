@@ -119,6 +119,67 @@ object TaskManager {
         }
     }
 
+    // 添加到 TaskManager.kt 类中
+    // 在 TaskManager.kt 中
+    suspend fun getAllTasksWithPagination(userId: String? = null): Result<List<TaskResponse>> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val actualUserId = userId ?: getCurrentUserId()
+                Log.d(TAG, "正在获取用户 $actualUserId 的所有任务")
+
+                // 获取第一页
+                val page1Response = TaskApiClient.taskApiService.getAllTasks(actualUserId, page = 1, limit = 10)
+
+                if (!page1Response.isSuccessful || page1Response.body() == null) {
+                    Log.e(TAG, "第一页请求失败: ${page1Response.code()}")
+                    return@withContext Result.Error("获取任务失败: ${page1Response.code()}")
+                }
+
+                val page1Data = page1Response.body()!!
+                val allTasks = page1Data.tasks.toMutableList()
+                val totalTasks = page1Data.total
+
+                Log.d(TAG, "第1页获取到 ${allTasks.size} 个任务 (总计: $totalTasks)")
+
+                // 如果还有更多页，继续获取
+                if (allTasks.size < totalTasks) {
+                    // 计算需要的页数
+                    val totalPages = (totalTasks + page1Data.limit - 1) / page1Data.limit
+
+                    Log.d(TAG, "总共需要获取 $totalPages 页")
+
+                    // 获取剩余页
+                    for (page in 2..totalPages) {
+                        Log.d(TAG, "获取第 $page 页...")
+
+                        val nextPageResponse = TaskApiClient.taskApiService.getAllTasks(
+                            actualUserId, page = page, limit = page1Data.limit
+                        )
+
+                        if (nextPageResponse.isSuccessful && nextPageResponse.body() != null) {
+                            val nextPageTasks = nextPageResponse.body()!!.tasks
+                            allTasks.addAll(nextPageTasks)
+                            Log.d(TAG, "第 $page 页获取到 ${nextPageTasks.size} 个任务，当前总数: ${allTasks.size}")
+                        } else {
+                            Log.e(TAG, "获取第 $page 页失败: ${nextPageResponse.code()}")
+                            // 继续尝试下一页，不返回错误
+                        }
+                    }
+                }
+
+                Log.d(TAG, "最终获取到 ${allTasks.size} 个任务 (总计应有: $totalTasks)")
+
+                // 更新缓存
+                cacheTaskList(allTasks)
+
+                return@withContext Result.Success(allTasks)
+            } catch (e: Exception) {
+                Log.e(TAG, "获取任务列表出错", e)
+                return@withContext Result.Error("获取任务列表出错: ${e.message}")
+            }
+        }
+    }
+
     // 将这个方法添加到 TaskManager.kt 中
 
     /**
@@ -432,16 +493,19 @@ object TaskManager {
 
     // 刷新缓存
     // 刷新缓存
+// 刷新缓存
     suspend fun refreshCache() {
         try {
             val userId = getCurrentUserId()
-            val response = TaskApiClient.taskApiService.getAllTasks(userId)
-            if (response.isSuccessful && response.body() != null) {
-                val taskListResponse = response.body()!!
-                // 从 TaskListResponse 中提取任务列表，然后传递给原有的 cacheTaskList 函数
-                val tasks = taskListResponse.tasks
+            // 使用分页方法获取所有任务
+            val result = getAllTasksWithPagination(userId)
+
+            if (result is Result.Success) {
+                val tasks = result.data
                 cacheTaskList(tasks)
                 Log.d(TAG, "任务缓存已刷新 (共 ${tasks.size} 个任务)")
+            } else {
+                Log.e(TAG, "刷新缓存失败: ${(result as Result.Error).message}")
             }
         } catch (e: Exception) {
             Log.e(TAG, "刷新缓存失败: ${e.message}", e)
