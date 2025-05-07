@@ -3,6 +3,7 @@ package repositories
 import (
     "context"
     "time"
+    "fmt"
     
     "github.com/Alchuang22-dev/backend/models"
     "go.mongodb.org/mongo-driver/bson"
@@ -335,70 +336,77 @@ func (r *MongoTaskRepository) GetTotalFocusStats(ctx context.Context, userID str
 // GetFocusDistribution 获取用户的专注时长分布
 func (r *MongoTaskRepository) GetFocusDistribution(ctx context.Context, userID string, period string, startDate time.Time) (*models.FocusDistribution, error) {
     var endDate time.Time
-    //var _groupBy string
-    //var _timeFormat string
+    var groupFormat string
+    
+    year := startDate.Year()
+    month := startDate.Month()
     
     switch period {
     case "day":
-        // 一天内专注分布（按小时）
-        endDate = startDate.Add(24 * time.Hour)
-        //groupBy = "$hour"
-        //timeFormat = "15" // 24小时制小时
-    case "week":
-        // 一周内专注分布（按天）
-        endDate = startDate.Add(7 * 24 * time.Hour)
-        //groupBy = "$dayOfWeek"
-        //timeFormat = "Monday" // 星期几
-    case "month":
         // 一个月内专注分布（按天）
-        endDate = startDate.AddDate(0, 1, 0)
-        //groupBy = "$dayOfMonth"
-        //timeFormat = "2006-01-02" // 年月日
-    default:
-        return nil, nil
+        firstDayOfMonth := time.Date(year, month, 1, 0, 0, 0, 0, startDate.Location())
+        lastDayOfMonth := firstDayOfMonth.AddDate(0, 1, 0).Add(-time.Second)
+        endDate = lastDayOfMonth
+        groupFormat = "%Y-%m-%d"
+        
+    case "week":
+        // 一年内专注分布（按周）
+        firstDayOfYear := time.Date(year, 1, 1, 0, 0, 0, 0, startDate.Location())
+        lastDayOfYear := time.Date(year, 12, 31, 23, 59, 59, 0, startDate.Location())
+        startDate = firstDayOfYear
+        endDate = lastDayOfYear
+        // MongoDB 没有内置周数支持，需要自定义实现
+        // 这里简化处理，使用年和周数组合
+        
+    case "month":
+        // 一年内专注分布（按月）
+        firstDayOfYear := time.Date(year, 1, 1, 0, 0, 0, 0, startDate.Location())
+        lastDayOfYear := time.Date(year, 12, 31, 23, 59, 59, 0, startDate.Location())
+        startDate = firstDayOfYear
+        endDate = lastDayOfYear
+        groupFormat = "%Y-%m"
     }
     
-    // 根据周期获取专注分布
-    pipeline := []bson.M{
-        {
-            "$match": bson.M{
-                "user_id": userID,
-                "is_finished": true,
-                "date": bson.M{
-                    "$gte": startDate,
-                    "$lt":  endDate,
-                },
+    // 获取用户在日期范围内已完成的任务
+    matchStage := bson.M{
+        "$match": bson.M{
+            "user_id": userID,
+            "is_finished": true,
+            "date": bson.M{
+                "$gte": startDate,
+                "$lte": endDate,
             },
         },
     }
     
-    if period == "day" {
-        pipeline = append(pipeline, bson.M{
+    var groupStage bson.M
+    if period == "week" {
+        // 按周分组需要特殊处理
+        groupStage = bson.M{
             "$group": bson.M{
-                "_id": bson.M{"$hour": "$date"},
+                "_id": bson.M{
+                    "year": bson.M{"$year": "$date"},
+                    "week": bson.M{"$week": "$date"}, // MongoDB 的 $week 操作符
+                },
                 "duration": bson.M{"$sum": "$duration_minutes"},
             },
-        })
-    } else if period == "week" {
-        pipeline = append(pipeline, bson.M{
-            "$group": bson.M{
-                "_id": bson.M{"$dayOfWeek": "$date"},
-                "duration": bson.M{"$sum": "$duration_minutes"},
-            },
-        })
+        }
     } else {
-        pipeline = append(pipeline, bson.M{
+        // 按天或按月分组
+        groupStage = bson.M{
             "$group": bson.M{
                 "_id": bson.M{
                     "$dateToString": bson.M{
-                        "format": "%Y-%m-%d",
+                        "format": groupFormat,
                         "date": "$date",
                     },
                 },
                 "duration": bson.M{"$sum": "$duration_minutes"},
             },
-        })
+        }
     }
+    
+    pipeline := []bson.M{matchStage, groupStage}
     
     cursor, err := r.getCollection().Aggregate(ctx, pipeline)
     if err != nil {
@@ -423,15 +431,22 @@ func (r *MongoTaskRepository) GetFocusDistribution(ctx context.Context, userID s
     
     for _, res := range results {
         var key string
-        switch v := res.ID.(type) {
-        case string:
-            key = v
-        case int32:
-            key = string(v)
-        case float64:
-            key = string(int(v))
-        default:
-            key = "unknown"
+        
+        if period == "week" {
+            // 处理周格式
+            if weekData, ok := res.ID.(bson.M); ok {
+                year := weekData["year"]
+                week := weekData["week"]
+                key = fmt.Sprintf("%d-W%02d", year, week)
+            }
+        } else {
+            // 处理天或月格式
+            switch v := res.ID.(type) {
+            case string:
+                key = v
+            default:
+                key = fmt.Sprintf("%v", v)
+            }
         }
         
         distribution.Data[key] = res.Duration

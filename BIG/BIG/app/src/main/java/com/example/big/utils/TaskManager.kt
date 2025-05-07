@@ -14,6 +14,7 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -79,6 +80,7 @@ object TaskManager {
         return System.currentTimeMillis() - lastSync > SYNC_INTERVAL
     }
 
+
     // 从服务器获取所有任务
     suspend fun getAllTasks(forceRefresh: Boolean = false): Result<List<TaskResponse>> {
         // 如果不强制刷新且缓存有效，返回缓存数据
@@ -113,6 +115,58 @@ object TaskManager {
             } catch (e: Exception) {
                 Log.e(TAG, "获取任务时发生错误: ${e.message}", e)
                 Result.Error(e.message ?: "获取任务时发生未知错误")
+            }
+        }
+    }
+
+    // 将这个方法添加到 TaskManager.kt 中
+
+    /**
+     * 获取专注时长分布数据，转换为 Map<String, Int> 格式
+     * @param period 周期类型：day, week, month
+     * @param startDate 开始日期，格式根据周期类型不同
+     * @return 包含分布数据的 Map，键为日期/时间，值为专注分钟数
+     */
+// 在 TaskManager.kt 中修改
+// 在 TaskManager.kt 中修改
+    suspend fun getFocusDistribution(
+        type: String,
+        startDate: String? = null,
+        endDate: String? = null
+    ): Result<FocusDistributionResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val userId = getCurrentUserId()
+                Log.d(TAG, "请求专注分布: type=$type, startDate=$startDate, endDate=$endDate")
+
+                // 确保日期格式正确
+                val validatedStartDate = if (startDate != null && !startDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+                    // 如果格式不是yyyy-MM-dd，则转换或使用当前日期
+                    val calendar = Calendar.getInstance()
+                    val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                    formatter.format(calendar.time)
+                } else {
+                    startDate
+                }
+
+                Log.d(TAG, "使用验证后的日期: $validatedStartDate")
+
+                val response = TaskApiClient.taskApiService.getFocusDistribution(
+                    userId, type, validatedStartDate, endDate
+                )
+
+                if (response.isSuccessful && response.body() != null) {
+                    val distribution = response.body()!!
+                    Log.d(TAG, "获取专注时长分布成功，类型: $type, 数据: ${distribution.data}")
+                    Result.Success(distribution)
+                } else {
+                    val errorBody = response.errorBody()?.string() ?: "Unknown error"
+                    Log.e(TAG, "获取专注时长分布失败: ${response.code()} - $errorBody")
+                    Result.Error("获取专注时长分布失败: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "获取专注时长分布时发生错误: ${e.message}", e)
+                Result.Error(e.message ?: "获取专注时长分布时发生未知错误")
             }
         }
     }
@@ -372,34 +426,6 @@ object TaskManager {
             } catch (e: Exception) {
                 Log.e(TAG, "获取累计专注统计时发生错误: ${e.message}", e)
                 Result.Error(e.message ?: "获取累计专注统计时发生未知错误")
-            }
-        }
-    }
-
-    // 获取专注时长分布
-    suspend fun getFocusDistribution(
-        type: String,
-        startDate: String? = null,
-        endDate: String? = null
-    ): Result<FocusDistributionResponse> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val userId = getCurrentUserId()
-                val response = TaskApiClient.taskApiService.getFocusDistribution(
-                    userId, type, startDate, endDate
-                )
-
-                if (response.isSuccessful && response.body() != null) {
-                    val distribution = response.body()!!
-                    Log.d(TAG, "获取专注时长分布成功，类型: $type")
-                    Result.Success(distribution)
-                } else {
-                    Log.e(TAG, "获取专注时长分布失败: ${response.code()} - ${response.errorBody()?.string()}")
-                    Result.Error("获取专注时长分布失败: ${response.code()}")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "获取专注时长分布时发生错误: ${e.message}", e)
-                Result.Error(e.message ?: "获取专注时长分布时发生未知错误")
             }
         }
     }

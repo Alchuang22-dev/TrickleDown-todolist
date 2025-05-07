@@ -27,6 +27,7 @@ import com.example.big.models.FocusDistributionResponse
 import com.example.big.models.FocusDistributionData
 import com.example.big.models.MonthlyDistributionData
 import com.example.big.models.YearlyDistributionData
+import com.example.big.utils.HeatmapUtils
 
 class StatisticsActivity : AppCompatActivity() {
     private val TAG = "StatisticsActivity"
@@ -183,42 +184,6 @@ class StatisticsActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun loadFocusDistribution(type: String) {
-        // 根据当前选择的日期范围构建参数
-        val startDate = when (type) {
-            "day" -> dateFormatter.format(calendar.time)
-            "week" -> {
-                // 获取本周的第一天
-                val tempCal = Calendar.getInstance()
-                tempCal.time = calendar.time
-                tempCal.set(Calendar.DAY_OF_WEEK, tempCal.firstDayOfWeek)
-                dateFormatter.format(tempCal.time)
-            }
-            "month" -> {
-                // 获取本月的第一天
-                val tempCal = Calendar.getInstance()
-                tempCal.time = calendar.time
-                tempCal.set(Calendar.DAY_OF_MONTH, 1)
-                dateFormatter.format(tempCal.time)
-            }
-            else -> null
-        }
-
-        val result = TaskManager.getFocusDistribution(type, startDate)
-        when (result) {
-            is TaskManager.Result.Success -> {
-                val distribution = result.data
-                generateHeatmap(distribution)
-            }
-            is TaskManager.Result.Error -> {
-                Log.e(TAG, "获取专注时长分布失败: ${result.message}")
-                runOnUiThread {
-                    Toast.makeText(applicationContext, "获取专注时长分布失败", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
     private suspend fun loadMonthlyFocusData() {
         // 获取当前月的年月格式
         val yearMonth = monthFormatter.format(calendar.time)
@@ -277,162 +242,97 @@ class StatisticsActivity : AppCompatActivity() {
         }
     }
 
-    private fun generateHeatmap(distribution: FocusDistributionResponse) {
-        runOnUiThread {
-            // 清除现有内容
-            dailyDistributionContainer!!.removeAllViews()
-
-            // 创建月份标题行
-            val monthRow = LinearLayout(this)
-            monthRow.layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            monthRow.orientation = LinearLayout.HORIZONTAL
-
-            // 添加空白单元格，对应左侧星期标签
-            val emptyCell = View(this)
-            emptyCell.layoutParams = LinearLayout.LayoutParams(
-                resources.getDimensionPixelSize(R.dimen.heatmap_day_width),
-                resources.getDimensionPixelSize(R.dimen.heatmap_cell_height)
-            )
-            monthRow.addView(emptyCell)
-
-            // 根据分布类型生成相应的热力图
-            when (distribution.type) {
-                "day" -> generateDailyHeatmap(distribution.data, monthRow)
-                "week" -> generateWeeklyHeatmap(distribution.data, monthRow)
-                "month" -> generateMonthlyHeatmap(distribution.data, monthRow)
-                else -> generateCustomHeatmap(distribution.data, monthRow)
+    private suspend fun loadFocusDistribution(type: String) {
+        // 根据当前选择的日期范围构建参数
+        val startDate = when (type) {
+            "day" -> {
+                // 对于日视图，使用当前日期的完整格式yyyy-MM-dd
+                dateFormatter.format(calendar.time)
             }
+            "week" -> {
+                // 对于周视图，获取当前周的第一天
+                val tempCal = Calendar.getInstance()
+                tempCal.time = calendar.time
+                tempCal.set(Calendar.DAY_OF_WEEK, tempCal.firstDayOfWeek)
+                dateFormatter.format(tempCal.time)
+            }
+            "month" -> {
+                // 对于月视图，获取当前月的第一天
+                val tempCal = Calendar.getInstance()
+                tempCal.time = calendar.time
+                tempCal.set(Calendar.DAY_OF_MONTH, 1)
+                dateFormatter.format(tempCal.time)
+            }
+            else -> dateFormatter.format(calendar.time)
+        }
 
-            dailyDistributionContainer!!.addView(monthRow)
+        Log.d(TAG, "Loading focus distribution for $type, start date: $startDate")
 
-            // 添加图例行
-            addHeatmapLegend()
+        // 调用API获取分布数据
+        val result = TaskManager.getFocusDistribution(type, startDate)
+        when (result) {
+            is TaskManager.Result.Success -> {
+                val distribution = result.data
+                Log.d(TAG, "Received distribution data for $type: ${distribution.data}")
+                runOnUiThread {
+                    // 重要：确保正确设置period
+                    distribution.period = type
+                    generateHeatmap(distribution)
+                }
+            }
+            is TaskManager.Result.Error -> {
+                Log.e(TAG, "获取专注时长分布失败: ${result.message}")
+                runOnUiThread {
+                    Toast.makeText(applicationContext, "获取专注时长分布失败", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
-    private fun generateDailyHeatmap(data: List<FocusDistributionData>, monthRow: LinearLayout) {
-        // 日视图按小时显示
-        val hours = Array(24) { "$it:00" }
-        for (hour in hours) {
-            val hourText = TextView(this)
-            hourText.layoutParams = LinearLayout.LayoutParams(
-                resources.getDimensionPixelSize(R.dimen.heatmap_cell_width),
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            hourText.text = hour
-            hourText.textAlignment = View.TEXT_ALIGNMENT_CENTER
-            hourText.textSize = 10f
-            monthRow.addView(hourText)
+    private fun generateHeatmap(distribution: FocusDistributionResponse) {
+        // 清除现有内容
+        dailyDistributionContainer!!.removeAllViews()
+
+        Log.d(TAG, "Generating heatmap for period: ${distribution.period}")
+
+        when (distribution.period) {
+            "day" -> generateDailyHeatmap(distribution.data)
+            "week" -> generateWeeklyHeatmap(distribution.data)
+            "month" -> generateMonthlyHeatmap(distribution.data)
+            else -> generateDailyHeatmap(distribution.data) // 默认日视图
         }
 
-        // 创建活动行
-        val activityRow = LinearLayout(this)
-        activityRow.layoutParams = LinearLayout.LayoutParams(
+        // 添加图例
+        addHeatmapLegend()
+    }
+
+    // 生成日视图热力图 - 显示一个月的日期数据
+    private fun generateDailyHeatmap(data: Map<String, Int>) {
+        Log.d(TAG, "Generating DAILY heatmap")
+        // 获取当前年月
+        val currentYearMonth = monthFormatter.format(calendar.time)
+
+        // 创建日期标签行
+        val labelRow = LinearLayout(this)
+        labelRow.layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
-        activityRow.orientation = LinearLayout.HORIZONTAL
+        labelRow.orientation = LinearLayout.HORIZONTAL
 
-        // 添加"活动"标签
-        val activityLabel = TextView(this)
-        activityLabel.layoutParams = LinearLayout.LayoutParams(
+        // 添加空白标签
+        val emptyLabel = TextView(this)
+        emptyLabel.layoutParams = LinearLayout.LayoutParams(
             resources.getDimensionPixelSize(R.dimen.heatmap_day_width),
-            resources.getDimensionPixelSize(R.dimen.heatmap_cell_height)
+            LinearLayout.LayoutParams.WRAP_CONTENT
         )
-        activityLabel.text = "活动"
-        activityLabel.textSize = 12f
-        activityRow.addView(activityLabel)
+        emptyLabel.text = ""
+        labelRow.addView(emptyLabel)
 
-        // 将API数据映射到24小时
-        val hourlyLevels = IntArray(24) { 0 }
-        for (item in data) {
-            try {
-                val time = item.date.split(":")[0].toInt()
-                if (time in 0..23) {
-                    hourlyLevels[time] = item.level
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "解析日期失败: ${item.date}", e)
-            }
-        }
-
-        // 为每个小时添加热力图单元格
-        for (hour in 0..23) {
-            val cell = createHeatmapCell(hourlyLevels[hour])
-            activityRow.addView(cell)
-        }
-
-        dailyDistributionContainer!!.addView(activityRow)
-    }
-
-    private fun generateWeeklyHeatmap(data: List<FocusDistributionData>, monthRow: LinearLayout) {
-        // 周视图按天显示
-        val weekdays = arrayOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-        for (day in weekdays) {
-            val dayText = TextView(this)
-            dayText.layoutParams = LinearLayout.LayoutParams(
-                resources.getDimensionPixelSize(R.dimen.heatmap_cell_width),
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            dayText.text = day
-            dayText.textAlignment = View.TEXT_ALIGNMENT_CENTER
-            dayText.textSize = 10f
-            monthRow.addView(dayText)
-        }
-
-        // 创建时间段行
-        val timeSlots = arrayOf("上午", "下午", "晚上")
-        for (timeslot in timeSlots) {
-            val timeRow = LinearLayout(this)
-            timeRow.layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            timeRow.orientation = LinearLayout.HORIZONTAL
-
-            // 添加时间段标签
-            val timeLabel = TextView(this)
-            timeLabel.layoutParams = LinearLayout.LayoutParams(
-                resources.getDimensionPixelSize(R.dimen.heatmap_day_width),
-                resources.getDimensionPixelSize(R.dimen.heatmap_cell_height)
-            )
-            timeLabel.text = timeslot
-            timeLabel.textSize = 12f
-            timeRow.addView(timeLabel)
-
-            // 将API数据映射到周视图
-            val weekData = data.filter { it.date.contains(timeslot) }
-            val dailyLevels = IntArray(7) { 0 }
-
-            for (item in weekData) {
-                try {
-                    // 假设API返回的日期格式为 "周一-上午" 这样的格式
-                    val dayPart = item.date.split("-")[0]
-                    val dayIndex = weekdays.indexOf(dayPart)
-                    if (dayIndex != -1) {
-                        dailyLevels[dayIndex] = item.level
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "解析周数据失败: ${item.date}", e)
-                }
-            }
-
-            // 为每一天添加热力图单元格
-            for (day in 0..6) {
-                val cell = createHeatmapCell(dailyLevels[day])
-                timeRow.addView(cell)
-            }
-
-            dailyDistributionContainer!!.addView(timeRow)
-        }
-    }
-
-    private fun generateMonthlyHeatmap(data: List<FocusDistributionData>, monthRow: LinearLayout) {
-        // 月视图按周和天显示
-        val daysInMonth = 31 // 假设当前月有31天
+        // 获取当月的天数
+        val cal = Calendar.getInstance()
+        cal.time = calendar.time
+        val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
 
         // 添加日期标签（1-31）
         for (day in 1..daysInMonth) {
@@ -444,49 +344,233 @@ class StatisticsActivity : AppCompatActivity() {
             dayText.text = day.toString()
             dayText.textAlignment = View.TEXT_ALIGNMENT_CENTER
             dayText.textSize = 10f
-            monthRow.addView(dayText)
+            labelRow.addView(dayText)
         }
+        dailyDistributionContainer!!.addView(labelRow)
 
-        // 创建活动行
-        val activityRow = LinearLayout(this)
-        activityRow.layoutParams = LinearLayout.LayoutParams(
+        // 创建热力图行
+        val heatmapRow = LinearLayout(this)
+        heatmapRow.layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
-        activityRow.orientation = LinearLayout.HORIZONTAL
+        heatmapRow.orientation = LinearLayout.HORIZONTAL
 
-        // 添加"活动"标签
-        val activityLabel = TextView(this)
-        activityLabel.layoutParams = LinearLayout.LayoutParams(
+        // 添加"专注"标签
+        val focusLabel = TextView(this)
+        focusLabel.layoutParams = LinearLayout.LayoutParams(
             resources.getDimensionPixelSize(R.dimen.heatmap_day_width),
             resources.getDimensionPixelSize(R.dimen.heatmap_cell_height)
         )
-        activityLabel.text = "活动"
-        activityLabel.textSize = 12f
-        activityRow.addView(activityLabel)
+        focusLabel.text = "专注"
+        focusLabel.textSize = 12f
+        heatmapRow.addView(focusLabel)
 
-        // 将API数据映射到月视图
-        val dailyLevels = IntArray(31) { 0 }
-
-        for (item in data) {
-            try {
-                // 假设API返回的日期格式为 "2023-04-15" 这样的格式
-                val day = item.date.split("-").last().toInt()
-                if (day in 1..31) {
-                    dailyLevels[day - 1] = item.level
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "解析月数据失败: ${item.date}", e)
-            }
-        }
+        // 获取当前年月
+        val year = cal.get(Calendar.YEAR)
+        val month = cal.get(Calendar.MONTH) + 1
 
         // 为每一天添加热力图单元格
-        for (day in 0..30) {
-            val cell = createHeatmapCell(dailyLevels[day])
-            activityRow.addView(cell)
+        for (day in 1..daysInMonth) {
+            val dateKey = String.format("%d-%02d-%02d", year, month, day)
+            val duration = data[dateKey] ?: 0
+            val cell = HeatmapUtils.createHeatmapCell(this, duration)
+            heatmapRow.addView(cell)
         }
 
-        dailyDistributionContainer!!.addView(activityRow)
+        dailyDistributionContainer!!.addView(heatmapRow)
+    }
+
+    // 生成周视图热力图 - 显示一年的周数据
+    private fun generateWeeklyHeatmap(data: Map<String, Int>) {
+        Log.d(TAG, "Generating WEEKLY heatmap")
+        // 获取当前年份
+        val currentYear = yearFormatter.format(calendar.time)
+
+        // 创建半年标签行（每年约52周，我们每行显示26周）
+        val weekLabelsRow1 = LinearLayout(this)
+        weekLabelsRow1.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        weekLabelsRow1.orientation = LinearLayout.HORIZONTAL
+
+        val weekLabelsRow2 = LinearLayout(this)
+        weekLabelsRow2.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        weekLabelsRow2.orientation = LinearLayout.HORIZONTAL
+
+        // 添加空白标签
+        val emptyLabel1 = TextView(this)
+        emptyLabel1.layoutParams = LinearLayout.LayoutParams(
+            resources.getDimensionPixelSize(R.dimen.heatmap_day_width),
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        emptyLabel1.text = "上半年"
+        weekLabelsRow1.addView(emptyLabel1)
+
+        val emptyLabel2 = TextView(this)
+        emptyLabel2.layoutParams = LinearLayout.LayoutParams(
+            resources.getDimensionPixelSize(R.dimen.heatmap_day_width),
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        emptyLabel2.text = "下半年"
+        weekLabelsRow2.addView(emptyLabel2)
+
+        // 添加周数标签
+        for (week in 1..26) {
+            val weekText = TextView(this)
+            weekText.layoutParams = LinearLayout.LayoutParams(
+                resources.getDimensionPixelSize(R.dimen.heatmap_cell_width),
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            weekText.text = week.toString()
+            weekText.textAlignment = View.TEXT_ALIGNMENT_CENTER
+            weekText.textSize = 10f
+            weekLabelsRow1.addView(weekText)
+        }
+
+        for (week in 27..52) {
+            val weekText = TextView(this)
+            weekText.layoutParams = LinearLayout.LayoutParams(
+                resources.getDimensionPixelSize(R.dimen.heatmap_cell_width),
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            weekText.text = week.toString()
+            weekText.textAlignment = View.TEXT_ALIGNMENT_CENTER
+            weekText.textSize = 10f
+            weekLabelsRow2.addView(weekText)
+        }
+
+        dailyDistributionContainer!!.addView(weekLabelsRow1)
+
+        // 创建上半年热力图行
+        val heatmapRow1 = LinearLayout(this)
+        heatmapRow1.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        heatmapRow1.orientation = LinearLayout.HORIZONTAL
+
+        // 添加"专注"标签
+        val focusLabel1 = TextView(this)
+        focusLabel1.layoutParams = LinearLayout.LayoutParams(
+            resources.getDimensionPixelSize(R.dimen.heatmap_day_width),
+            resources.getDimensionPixelSize(R.dimen.heatmap_cell_height)
+        )
+        focusLabel1.text = "专注"
+        focusLabel1.textSize = 12f
+        heatmapRow1.addView(focusLabel1)
+
+        // 为上半年每周添加热力图单元格
+        for (week in 1..26) {
+            val weekKey = String.format("%s-W%02d", currentYear, week)
+            val duration = data[weekKey] ?: 0
+            val cell = HeatmapUtils.createHeatmapCell(this, duration)
+            heatmapRow1.addView(cell)
+        }
+
+        dailyDistributionContainer!!.addView(heatmapRow1)
+        dailyDistributionContainer!!.addView(weekLabelsRow2)
+
+        // 创建下半年热力图行
+        val heatmapRow2 = LinearLayout(this)
+        heatmapRow2.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        heatmapRow2.orientation = LinearLayout.HORIZONTAL
+
+        // 添加"专注"标签
+        val focusLabel2 = TextView(this)
+        focusLabel2.layoutParams = LinearLayout.LayoutParams(
+            resources.getDimensionPixelSize(R.dimen.heatmap_day_width),
+            resources.getDimensionPixelSize(R.dimen.heatmap_cell_height)
+        )
+        focusLabel2.text = "专注"
+        focusLabel2.textSize = 12f
+        heatmapRow2.addView(focusLabel2)
+
+        // 为下半年每周添加热力图单元格
+        for (week in 27..52) {
+            val weekKey = String.format("%s-W%02d", currentYear, week)
+            val duration = data[weekKey] ?: 0
+            val cell = HeatmapUtils.createHeatmapCell(this, duration)
+            heatmapRow2.addView(cell)
+        }
+
+        dailyDistributionContainer!!.addView(heatmapRow2)
+    }
+
+    // 生成月视图热力图 - 显示一年的月数据
+    private fun generateMonthlyHeatmap(data: Map<String, Int>) {
+        Log.d(TAG, "Generating MONTHLY heatmap")
+        // 获取当前年份
+        val currentYear = yearFormatter.format(calendar.time)
+
+        // 创建月份标签行
+        val labelRow = LinearLayout(this)
+        labelRow.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        labelRow.orientation = LinearLayout.HORIZONTAL
+
+        // 添加空白标签
+        val emptyLabel = TextView(this)
+        emptyLabel.layoutParams = LinearLayout.LayoutParams(
+            resources.getDimensionPixelSize(R.dimen.heatmap_day_width),
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        emptyLabel.text = ""
+        labelRow.addView(emptyLabel)
+
+        // 添加月份标签
+        val months = arrayOf("1月", "2月", "3月", "4月", "5月", "6月",
+            "7月", "8月", "9月", "10月", "11月", "12月")
+
+        for (month in months) {
+            val monthText = TextView(this)
+            monthText.layoutParams = LinearLayout.LayoutParams(
+                resources.getDimensionPixelSize(R.dimen.heatmap_cell_width),
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            monthText.text = month
+            monthText.textAlignment = View.TEXT_ALIGNMENT_CENTER
+            monthText.textSize = 10f
+            labelRow.addView(monthText)
+        }
+        dailyDistributionContainer!!.addView(labelRow)
+
+        // 创建热力图行
+        val heatmapRow = LinearLayout(this)
+        heatmapRow.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        heatmapRow.orientation = LinearLayout.HORIZONTAL
+
+        // 添加"专注"标签
+        val focusLabel = TextView(this)
+        focusLabel.layoutParams = LinearLayout.LayoutParams(
+            resources.getDimensionPixelSize(R.dimen.heatmap_day_width),
+            resources.getDimensionPixelSize(R.dimen.heatmap_cell_height)
+        )
+        focusLabel.text = "专注"
+        focusLabel.textSize = 12f
+        heatmapRow.addView(focusLabel)
+
+        // 为每个月添加热力图单元格
+        for (month in 1..12) {
+            val monthKey = String.format("%s-%02d", currentYear, month)
+            val duration = data[monthKey] ?: 0
+            val cell = HeatmapUtils.createHeatmapCell(this, duration)
+            heatmapRow.addView(cell)
+        }
+
+        dailyDistributionContainer!!.addView(heatmapRow)
     }
 
     private fun generateCustomHeatmap(data: List<FocusDistributionData>, monthRow: LinearLayout) {
@@ -554,69 +638,6 @@ class StatisticsActivity : AppCompatActivity() {
         return cell
     }
 
-    private fun addHeatmapLegend() {
-        // 添加图例行
-        val legendRow = LinearLayout(this)
-        legendRow.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-        legendRow.orientation = LinearLayout.HORIZONTAL
-        legendRow.setPadding(0, 20, 0, 0)
-
-        // 添加说明文本
-        val legendText = TextView(this)
-        legendText.layoutParams = LinearLayout.LayoutParams(
-            0,
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            1f
-        )
-        legendText.text = "任务完成数量："
-        legendText.textSize = 12f
-        legendRow.addView(legendText)
-
-        // 添加图例项
-        val legendLabels = arrayOf("少", "", "", "", "多")
-        val legendColors = intArrayOf(
-            Color.parseColor("#ebedf0"),
-            Color.parseColor("#c6e48b"),
-            Color.parseColor("#7bc96f"),
-            Color.parseColor("#239a3b"),
-            Color.parseColor("#196127")
-        )
-
-        val legendItems = LinearLayout(this)
-        legendItems.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-        legendItems.orientation = LinearLayout.HORIZONTAL
-
-        for (i in legendLabels.indices) {
-            val labelText = TextView(this)
-            labelText.layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            labelText.text = legendLabels[i]
-            labelText.textSize = 12f
-
-            val colorBox = View(this)
-            val boxParams = LinearLayout.LayoutParams(
-                resources.getDimensionPixelSize(R.dimen.heatmap_cell_width),
-                resources.getDimensionPixelSize(R.dimen.heatmap_cell_height)
-            )
-            boxParams.setMargins(5, 0, 5, 0)
-            colorBox.layoutParams = boxParams
-            colorBox.setBackgroundColor(legendColors[i])
-
-            legendItems.addView(labelText)
-            legendItems.addView(colorBox)
-        }
-
-        legendRow.addView(legendItems)
-        dailyDistributionContainer!!.addView(legendRow)
-    }
 
     private fun setupMonthlyChart(monthlyData: List<MonthlyDistributionData>) {
         runOnUiThread {
@@ -706,6 +727,7 @@ class StatisticsActivity : AppCompatActivity() {
     private fun setupDistributionButtons() {
         btnDaily!!.setOnClickListener {
             currentDistributionType = "day"
+            Log.d(TAG, "Switching to DAY view")
             updateButtonSelection(
                 btnDaily!!,
                 btnWeekly!!, btnMonthly!!
@@ -718,6 +740,7 @@ class StatisticsActivity : AppCompatActivity() {
 
         btnWeekly!!.setOnClickListener {
             currentDistributionType = "week"
+            Log.d(TAG, "Switching to WEEK view")
             updateButtonSelection(
                 btnWeekly!!,
                 btnDaily!!, btnMonthly!!
@@ -730,6 +753,7 @@ class StatisticsActivity : AppCompatActivity() {
 
         btnMonthly!!.setOnClickListener {
             currentDistributionType = "month"
+            Log.d(TAG, "Switching to MONTH view")
             updateButtonSelection(
                 btnMonthly!!,
                 btnDaily!!, btnWeekly!!
@@ -742,6 +766,66 @@ class StatisticsActivity : AppCompatActivity() {
 
         // 默认选中日视图
         updateButtonSelection(btnDaily!!, btnWeekly!!, btnMonthly!!)
+    }
+
+
+    private fun addHeatmapLegend() {
+        // 添加图例行
+        val legendRow = LinearLayout(this)
+        legendRow.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        legendRow.orientation = LinearLayout.HORIZONTAL
+        legendRow.setPadding(0, 20, 0, 0)
+
+        // 添加说明文本
+        val legendText = TextView(this)
+        legendText.layoutParams = LinearLayout.LayoutParams(
+            0,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1f
+        )
+        legendText.text = "专注时长："
+        legendText.textSize = 12f
+        legendRow.addView(legendText)
+
+        // 添加图例项
+        val legendItems = LinearLayout(this)
+        legendItems.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        legendItems.orientation = LinearLayout.HORIZONTAL
+
+        val legendLabels = arrayOf("0分钟", "<30分钟", "<60分钟", "<2小时", "≥2小时")
+        val intensities = intArrayOf(0, 15, 45, 90, 150)
+
+        for (i in legendLabels.indices) {
+            val colorBox = View(this)
+            val boxParams = LinearLayout.LayoutParams(
+                resources.getDimensionPixelSize(R.dimen.heatmap_cell_width),
+                resources.getDimensionPixelSize(R.dimen.heatmap_cell_height)
+            )
+            boxParams.setMargins(5, 0, 5, 0)
+            colorBox.layoutParams = boxParams
+            colorBox.setBackgroundColor(HeatmapUtils.getHeatmapColor(intensities[i]))
+
+            val labelText = TextView(this)
+            labelText.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            labelText.text = legendLabels[i]
+            labelText.textSize = 10f
+            labelText.setPadding(0, 0, 10, 0)
+
+            legendItems.addView(colorBox)
+            legendItems.addView(labelText)
+        }
+
+        legendRow.addView(legendItems)
+        dailyDistributionContainer!!.addView(legendRow)
     }
 
     private fun setupMonthYearButtons() {
@@ -842,9 +926,9 @@ class StatisticsActivity : AppCompatActivity() {
             else -> dateFormatter.format(calendar.time)
         }
         val distributionTitle = when (currentDistributionType) {
-            "day" -> "专注时长分布（日）$distributionDate"
-            "week" -> "专注时长分布（周）$distributionDate"
-            "month" -> "专注时长分布（月）$distributionDate"
+            "day" -> "专注时长分布（日）"
+            "week" -> "专注时长分布（周）"
+            "month" -> "专注时长分布（月）"
             else -> "专注时长分布（自定义）$distributionDate"
         }
         tvDistributionTitle?.text = distributionTitle
