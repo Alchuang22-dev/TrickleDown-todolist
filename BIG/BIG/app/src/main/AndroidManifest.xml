@@ -44,7 +44,7 @@
             android:name=".ProfileActivity"
             android:exported="false" />
         <activity
-            android:name=".TodayViewActivity"
+            android:name=".TodayViewComposeActivity"
             android:exported="false" />
         <activity
             android:name=".MainActivity"

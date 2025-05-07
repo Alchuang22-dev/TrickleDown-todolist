@@ -180,7 +180,7 @@ fun KanbanScreen(coroutineScope: kotlinx.coroutines.CoroutineScope) {
             DateSelectionBar(
                 dates = visibleDates,
                 onDateClick = { date ->
-                    val intent = Intent(context, TodayViewActivity::class.java)
+                    val intent = Intent(context, TodayViewComposeActivity::class.java)
                     intent.putExtra("selected_date", date.timeInMillis)
                     context.startActivity(intent)
                 },
