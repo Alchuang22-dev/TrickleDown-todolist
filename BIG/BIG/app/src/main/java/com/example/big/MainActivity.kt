@@ -370,7 +370,7 @@ fun LogoutButton(onClick: () -> Unit) {
 fun EntriesGrid(onNavigate: (Class<out Activity>) -> Unit) {
     val entries = listOf(
         Triple("今日", Color(0xFF4CAF50), TodayTasksActivity::class.java),
-        Triple("计划", Color(0xFF2196F3), KanbanViewActivity::class.java),
+        Triple("计划", Color(0xFF2196F3), KanbanViewActivityCompose::class.java),
         Triple("全部", Color(0xFFFF9800), ListViewActivity::class.java),
         Triple("统计", Color(0xFF9C27B0), StatisticsActivity::class.java)
     )

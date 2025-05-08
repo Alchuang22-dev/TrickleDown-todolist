@@ -14,6 +14,7 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -79,6 +80,7 @@ object TaskManager {
         return System.currentTimeMillis() - lastSync > SYNC_INTERVAL
     }
 
+
     // 从服务器获取所有任务
     suspend fun getAllTasks(forceRefresh: Boolean = false): Result<List<TaskResponse>> {
         // 如果不强制刷新且缓存有效，返回缓存数据
@@ -113,6 +115,119 @@ object TaskManager {
             } catch (e: Exception) {
                 Log.e(TAG, "获取任务时发生错误: ${e.message}", e)
                 Result.Error(e.message ?: "获取任务时发生未知错误")
+            }
+        }
+    }
+
+    // 添加到 TaskManager.kt 类中
+    // 在 TaskManager.kt 中
+    suspend fun getAllTasksWithPagination(userId: String? = null): Result<List<TaskResponse>> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val actualUserId = userId ?: getCurrentUserId()
+                Log.d(TAG, "正在获取用户 $actualUserId 的所有任务")
+
+                // 获取第一页
+                val page1Response = TaskApiClient.taskApiService.getAllTasks(actualUserId, page = 1, limit = 10)
+
+                if (!page1Response.isSuccessful || page1Response.body() == null) {
+                    Log.e(TAG, "第一页请求失败: ${page1Response.code()}")
+                    return@withContext Result.Error("获取任务失败: ${page1Response.code()}")
+                }
+
+                val page1Data = page1Response.body()!!
+                val allTasks = page1Data.tasks.toMutableList()
+                val totalTasks = page1Data.total
+
+                Log.d(TAG, "第1页获取到 ${allTasks.size} 个任务 (总计: $totalTasks)")
+
+                // 如果还有更多页，继续获取
+                if (allTasks.size < totalTasks) {
+                    // 计算需要的页数
+                    val totalPages = (totalTasks + page1Data.limit - 1) / page1Data.limit
+
+                    Log.d(TAG, "总共需要获取 $totalPages 页")
+
+                    // 获取剩余页
+                    for (page in 2..totalPages) {
+                        Log.d(TAG, "获取第 $page 页...")
+
+                        val nextPageResponse = TaskApiClient.taskApiService.getAllTasks(
+                            actualUserId, page = page, limit = page1Data.limit
+                        )
+
+                        if (nextPageResponse.isSuccessful && nextPageResponse.body() != null) {
+                            val nextPageTasks = nextPageResponse.body()!!.tasks
+                            allTasks.addAll(nextPageTasks)
+                            Log.d(TAG, "第 $page 页获取到 ${nextPageTasks.size} 个任务，当前总数: ${allTasks.size}")
+                        } else {
+                            Log.e(TAG, "获取第 $page 页失败: ${nextPageResponse.code()}")
+                            // 继续尝试下一页，不返回错误
+                        }
+                    }
+                }
+
+                Log.d(TAG, "最终获取到 ${allTasks.size} 个任务 (总计应有: $totalTasks)")
+
+                // 更新缓存
+                cacheTaskList(allTasks)
+
+                return@withContext Result.Success(allTasks)
+            } catch (e: Exception) {
+                Log.e(TAG, "获取任务列表出错", e)
+                return@withContext Result.Error("获取任务列表出错: ${e.message}")
+            }
+        }
+    }
+
+    // 将这个方法添加到 TaskManager.kt 中
+
+    /**
+     * 获取专注时长分布数据，转换为 Map<String, Int> 格式
+     * @param period 周期类型：day, week, month
+     * @param startDate 开始日期，格式根据周期类型不同
+     * @return 包含分布数据的 Map，键为日期/时间，值为专注分钟数
+     */
+// 在 TaskManager.kt 中修改
+// 在 TaskManager.kt 中修改
+    suspend fun getFocusDistribution(
+        type: String,
+        startDate: String? = null,
+        endDate: String? = null
+    ): Result<FocusDistributionResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val userId = getCurrentUserId()
+                Log.d(TAG, "请求专注分布: type=$type, startDate=$startDate, endDate=$endDate")
+
+                // 确保日期格式正确
+                val validatedStartDate = if (startDate != null && !startDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+                    // 如果格式不是yyyy-MM-dd，则转换或使用当前日期
+                    val calendar = Calendar.getInstance()
+                    val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                    formatter.format(calendar.time)
+                } else {
+                    startDate
+                }
+
+                Log.d(TAG, "使用验证后的日期: $validatedStartDate")
+
+                val response = TaskApiClient.taskApiService.getFocusDistribution(
+                    userId, type, validatedStartDate, endDate
+                )
+
+                if (response.isSuccessful && response.body() != null) {
+                    val distribution = response.body()!!
+                    Log.d(TAG, "获取专注时长分布成功，类型: $type, 数据: ${distribution.data}")
+                    Result.Success(distribution)
+                } else {
+                    val errorBody = response.errorBody()?.string() ?: "Unknown error"
+                    Log.e(TAG, "获取专注时长分布失败: ${response.code()} - $errorBody")
+                    Result.Error("获取专注时长分布失败: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "获取专注时长分布时发生错误: ${e.message}", e)
+                Result.Error(e.message ?: "获取专注时长分布时发生未知错误")
             }
         }
     }
@@ -376,46 +491,21 @@ object TaskManager {
         }
     }
 
-    // 获取专注时长分布
-    suspend fun getFocusDistribution(
-        type: String,
-        startDate: String? = null,
-        endDate: String? = null
-    ): Result<FocusDistributionResponse> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val userId = getCurrentUserId()
-                val response = TaskApiClient.taskApiService.getFocusDistribution(
-                    userId, type, startDate, endDate
-                )
-
-                if (response.isSuccessful && response.body() != null) {
-                    val distribution = response.body()!!
-                    Log.d(TAG, "获取专注时长分布成功，类型: $type")
-                    Result.Success(distribution)
-                } else {
-                    Log.e(TAG, "获取专注时长分布失败: ${response.code()} - ${response.errorBody()?.string()}")
-                    Result.Error("获取专注时长分布失败: ${response.code()}")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "获取专注时长分布时发生错误: ${e.message}", e)
-                Result.Error(e.message ?: "获取专注时长分布时发生未知错误")
-            }
-        }
-    }
-
     // 刷新缓存
     // 刷新缓存
+// 刷新缓存
     suspend fun refreshCache() {
         try {
             val userId = getCurrentUserId()
-            val response = TaskApiClient.taskApiService.getAllTasks(userId)
-            if (response.isSuccessful && response.body() != null) {
-                val taskListResponse = response.body()!!
-                // 从 TaskListResponse 中提取任务列表，然后传递给原有的 cacheTaskList 函数
-                val tasks = taskListResponse.tasks
+            // 使用分页方法获取所有任务
+            val result = getAllTasksWithPagination(userId)
+
+            if (result is Result.Success) {
+                val tasks = result.data
                 cacheTaskList(tasks)
                 Log.d(TAG, "任务缓存已刷新 (共 ${tasks.size} 个任务)")
+            } else {
+                Log.e(TAG, "刷新缓存失败: ${(result as Result.Error).message}")
             }
         } catch (e: Exception) {
             Log.e(TAG, "刷新缓存失败: ${e.message}", e)
