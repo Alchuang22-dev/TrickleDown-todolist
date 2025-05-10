@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,11 +21,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.sp
@@ -36,8 +40,10 @@ import com.example.big.utils.UserManager
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 class TodayViewComposeActivity : ComponentActivity() {
     private var selectedDate: Date? = null
@@ -382,6 +388,175 @@ fun TimelineBackground(startHour: Int, endHour: Int) {
                         .background(Color.LightGray)
                         .align(Alignment.TopStart)
                 )
+            }
+        }
+    }
+}
+@Composable
+fun TaskCard(
+    task: Task,
+    heightDp: Dp,
+    modifier: Modifier = Modifier,
+    onTaskMoved: ((Task, Calendar, Int, Int) -> Unit)? = null
+) {
+    val context = LocalContext.current
+    val minHeight = 50.dp
+
+    // 当前高度
+    val actualHeight = if (heightDp.value < minHeight.value) minHeight else heightDp
+    val isMinHeight = actualHeight.value <= 60f
+
+    // 拖拽状态
+    var offsetX by remember { mutableStateOf(0f) }
+    var offsetY by remember { mutableStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+
+    // 本地密度换算
+    val density = LocalDensity.current
+
+    // 用于记录任务的原始位置信息，拖拽取消时恢复位置
+    var originalX by remember { mutableStateOf(0f) }
+    var originalY by remember { mutableStateOf(0f) }
+
+    // 时间参数
+    val hourHeightDp = 72.dp
+    val startHour = 7
+
+    // 获取当前可见的日期
+    val currentDate = Calendar.getInstance()
+    val visibleDates = listOf(
+        (currentDate.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, -1) },
+        currentDate.clone() as Calendar,
+        (currentDate.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, 1) }
+    )
+
+    Card(
+        modifier = modifier
+            .height(actualHeight)
+            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = {
+                        isDragging = true
+                        originalX = offsetX
+                        originalY = offsetY
+                    },
+                    onDragEnd = {
+                        isDragging = false
+
+                        // 防止误触，如果拖动距离太小，恢复原始位置
+                        if (abs(offsetX - originalX) < 20 && abs(offsetY - originalY) < 20) {
+                            offsetX = originalX
+                            offsetY = originalY
+
+                            // 点击事件处理
+                            val intent = Intent(context, EditTaskActivity::class.java)
+                            intent.putExtra("task_id", task.id)
+                            context.startActivity(intent)
+                            return@detectDragGestures
+                        }
+
+                        // 简化实现：直接根据当前偏移计算新位置
+                        val screenWidth = context.resources.displayMetrics.widthPixels
+                        val leftPadding = with(density) { 40.dp.toPx() }
+                        val availableWidth = screenWidth - leftPadding
+                        val columnWidth = availableWidth / 3
+
+                        // 确定在哪一列（第几天）
+                        val dateIndex = ((offsetX + leftPadding) / columnWidth).toInt().coerceIn(0, 2)
+
+                        // 计算开始时间
+                        val hourHeightPx = with(density) { hourHeightDp.toPx() }
+                        val totalMinutesFromStart = ((offsetY / hourHeightPx) * 60).toInt()
+                        val newStartHour = startHour + (totalMinutesFromStart / 60)
+                        val newStartMinute = (totalMinutesFromStart % 60) / 5 * 5 // 向下取整到5分钟
+
+                        // 保持任务原有持续时间
+                        val taskDurationMinutes = task.durationMinutes
+
+                        // 计算新的结束时间
+                        val totalEndMinutes = totalMinutesFromStart + taskDurationMinutes
+                        val newEndHour = startHour + (totalEndMinutes / 60)
+                        val newEndMinute = (totalEndMinutes % 60) / 5 * 5
+
+                        // 获取目标日期
+                        val targetDate = visibleDates[dateIndex]
+
+                        // 调用回调更新任务
+                        onTaskMoved?.invoke(task, targetDate,
+                            newStartHour * 60 + newStartMinute,
+                            newEndHour * 60 + newEndMinute)
+                    },
+                    onDragCancel = {
+                        // 取消拖拽，恢复原始位置
+                        isDragging = false
+                        offsetX = originalX
+                        offsetY = originalY
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        offsetX += dragAmount.x
+                        offsetY += dragAmount.y
+                    }
+                )
+            },
+        colors = CardDefaults.cardColors(
+            containerColor = if (task.isImportant)
+                if (isDragging) Color(0xFFBBE0BB) else Color(0xFFE8F5E9)
+            else
+                if (isDragging) Color(0xFFB3E0FF) else Color(0xFFE3F2FD)
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isDragging) 8.dp else 2.dp
+        )
+    ) {
+        // Card 内容
+        Box(modifier = Modifier.fillMaxSize()) {
+            // 重要性指示条
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(
+                        if (task.isImportant) Color(0xFF66BB6A) else Color(0xFF42A5F5)
+                    )
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+            ) {
+                // 任务标题
+                Text(
+                    text = task.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    maxLines = if (isMinHeight) 2 else 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // 如果高度足够，显示时间
+                if (!isMinHeight) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = task.timeRange,
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+
+                    // 如果高度更足够，显示地点
+                    if (actualHeight.value > 90f && task.place != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = task.place!!,
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
     }
