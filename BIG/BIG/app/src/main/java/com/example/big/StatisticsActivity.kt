@@ -103,8 +103,8 @@ class StatisticsActivity : AppCompatActivity() {
         btnDaily = findViewById(R.id.btn_daily)
         btnWeekly = findViewById(R.id.btn_weekly)
         btnMonthly = findViewById(R.id.btn_monthly)
-        btnPrevDate = findViewById(R.id.btn_prev_date)
-        btnNextDate = findViewById(R.id.btn_next_date)
+        // btnPrevDate = findViewById(R.id.btn_prev_date)
+        // btnNextDate = findViewById(R.id.btn_next_date)
         tvDistributionTitle = findViewById<TextView>(R.id.tv_distribution_title)
 
         // 月度/年度数据视图
@@ -824,6 +824,7 @@ class StatisticsActivity : AppCompatActivity() {
     }
 
     private fun setupDateNavigationButtons() {
+        /*
         btnPrevDate!!.setOnClickListener {
             navigateDate(-1)
         }
@@ -831,6 +832,7 @@ class StatisticsActivity : AppCompatActivity() {
         btnNextDate!!.setOnClickListener {
             navigateDate(1)
         }
+        */
 
         btnPrevMonth!!.setOnClickListener {
             navigateMonth(-1)
