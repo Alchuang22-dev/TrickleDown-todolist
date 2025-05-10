@@ -189,14 +189,14 @@ fun TodayViewScreen(selectedDate: Date, coroutineScope: kotlinx.coroutines.Corou
 
                 // 测量时间线背景
                 val timelineBackgroundPlaceables = subcompose("timelineBackground") {
-                    TimelineBackground(startHour = 7, endHour = 23)
+                    TimelineBackground(startHour = 0, endHour = 23)
                 }.map { it.measure(constraints) }
 
                 // 测量时间任务区域
                 val timeTasksPlaceables = subcompose("timeTasks") {
                     TasksTimeline(
                         tasks = timeTasks,
-                        startHour = 7,
+                        startHour = 0,
                         endHour = 23,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -420,7 +420,7 @@ fun TaskCard(
 
     // 时间参数
     val hourHeightDp = 72.dp
-    val startHour = 7
+    val startHour = 0
 
     // 获取当前可见的日期
     val currentDate = Calendar.getInstance()
