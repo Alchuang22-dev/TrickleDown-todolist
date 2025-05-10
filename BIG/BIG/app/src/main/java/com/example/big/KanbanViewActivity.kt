@@ -1433,7 +1433,12 @@ fun DraggableTaskCard(
                         }
                     }
                 )
-            },
+            }
+        .clickable(enabled = !isDragging) {
+            val intent = Intent(context, EditTaskActivity::class.java)
+            intent.putExtra("task_id", task.id)
+            context.startActivity(intent)
+        },
         colors = CardDefaults.cardColors(
             containerColor = if (task.isImportant)
                 if (isDragging) Color(0xFFBBE0BB) else Color(0xFFE8F5E9)
