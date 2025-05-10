@@ -21,7 +21,7 @@ class TodayTimelineAdapter(
 
     // Hours to display (from 7 AM to 23 PM)
     companion object {
-        private const val START_HOUR = 7
+        private const val START_HOUR = 0
         private const val END_HOUR = 23
 
         // Category column titles
