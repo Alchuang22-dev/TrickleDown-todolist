@@ -276,7 +276,7 @@ class EditTaskActivity : AppCompatActivity() {
                 endHourPicker!!.value = startHour + 1
                 endMinutePicker!!.value = 0
             }
-            Toast.makeText(this, "结束时间必须晚于开始时间", Toast.LENGTH_SHORT).show()
+            // Toast.makeText(this, "结束时间必须晚于开始时间", Toast.LENGTH_SHORT).show()
         }
     }
 

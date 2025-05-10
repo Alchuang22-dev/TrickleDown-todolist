@@ -60,6 +60,10 @@ class StatisticsActivity : AppCompatActivity() {
     private val monthFormatter = SimpleDateFormat("yyyy-MM", Locale.getDefault())
     private val yearFormatter = SimpleDateFormat("yyyy", Locale.getDefault())
 
+    // 缓存热力图数据，用于折线图显示
+    private var dailyHeatmapData: Map<String, Int> = HashMap()
+    private var monthlyHeatmapData: Map<String, Int> = HashMap()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_statistics)
@@ -99,8 +103,8 @@ class StatisticsActivity : AppCompatActivity() {
         btnDaily = findViewById(R.id.btn_daily)
         btnWeekly = findViewById(R.id.btn_weekly)
         btnMonthly = findViewById(R.id.btn_monthly)
-        btnPrevDate = findViewById(R.id.btn_prev_date)
-        btnNextDate = findViewById(R.id.btn_next_date)
+        // btnPrevDate = findViewById(R.id.btn_prev_date)
+        // btnNextDate = findViewById(R.id.btn_next_date)
         tvDistributionTitle = findViewById<TextView>(R.id.tv_distribution_title)
 
         // 月度/年度数据视图
@@ -133,9 +137,11 @@ class StatisticsActivity : AppCompatActivity() {
 
                 // 加载月度/年度视图数据
                 if (isYearView) {
-                    loadYearlyFocusData()
+                    // 获取月视图数据用于年度折线图
+                    loadFocusDistribution("month", true)
                 } else {
-                    loadMonthlyFocusData()
+                    // 获取日视图数据用于月度折线图
+                    loadFocusDistribution("day", true)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "加载统计数据失败", e)
@@ -184,70 +190,15 @@ class StatisticsActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun loadMonthlyFocusData() {
-        // 获取当前月的年月格式
-        val yearMonth = monthFormatter.format(calendar.time)
-
-        // 调用API获取本月各天的专注数据
-        val result = TaskManager.getFocusDistribution("month", yearMonth)
-        when (result) {
-            is TaskManager.Result.Success -> {
-                val distribution = result.data
-
-                // 确保月度数据不为空
-                if (distribution.monthly_data != null) {
-                    setupMonthlyChart(distribution.monthly_data)
-                } else {
-                    Log.e(TAG, "月度专注数据为空")
-                    runOnUiThread {
-                        Toast.makeText(applicationContext, "没有找到月度专注数据", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            is TaskManager.Result.Error -> {
-                Log.e(TAG, "获取月度专注数据失败: ${result.message}")
-                runOnUiThread {
-                    Toast.makeText(applicationContext, "获取月度专注数据失败", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    private suspend fun loadYearlyFocusData() {
-        // 获取当前年份
-        val year = yearFormatter.format(calendar.time)
-
-        // 调用API获取本年各月的专注数据
-        val result = TaskManager.getFocusDistribution("year", year)
-        when (result) {
-            is TaskManager.Result.Success -> {
-                val distribution = result.data
-
-                // 确保年度数据不为空
-                if (distribution.yearly_data != null) {
-                    setupYearlyChart(distribution.yearly_data)
-                } else {
-                    Log.e(TAG, "年度专注数据为空")
-                    runOnUiThread {
-                        Toast.makeText(applicationContext, "没有找到年度专注数据", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            is TaskManager.Result.Error -> {
-                Log.e(TAG, "获取年度专注数据失败: ${result.message}")
-                runOnUiThread {
-                    Toast.makeText(applicationContext, "获取年度专注数据失败", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    private suspend fun loadFocusDistribution(type: String) {
+    private suspend fun loadFocusDistribution(type: String, isForChart: Boolean = false) {
         // 根据当前选择的日期范围构建参数
         val startDate = when (type) {
             "day" -> {
-                // 对于日视图，使用当前日期的完整格式yyyy-MM-dd
-                dateFormatter.format(calendar.time)
+                // 对于日视图，使用当前月的第一天（用于获取整月数据）
+                val tempCal = Calendar.getInstance()
+                tempCal.time = calendar.time
+                tempCal.set(Calendar.DAY_OF_MONTH, 1)
+                dateFormatter.format(tempCal.time)
             }
             "week" -> {
                 // 对于周视图，获取当前周的第一天
@@ -257,9 +208,10 @@ class StatisticsActivity : AppCompatActivity() {
                 dateFormatter.format(tempCal.time)
             }
             "month" -> {
-                // 对于月视图，获取当前月的第一天
+                // 对于月视图，获取当前年的第一天（用于获取整年数据）
                 val tempCal = Calendar.getInstance()
                 tempCal.time = calendar.time
+                tempCal.set(Calendar.MONTH, 0)
                 tempCal.set(Calendar.DAY_OF_MONTH, 1)
                 dateFormatter.format(tempCal.time)
             }
@@ -274,10 +226,29 @@ class StatisticsActivity : AppCompatActivity() {
             is TaskManager.Result.Success -> {
                 val distribution = result.data
                 Log.d(TAG, "Received distribution data for $type: ${distribution.data}")
-                runOnUiThread {
-                    // 重要：确保正确设置period
-                    distribution.period = type
-                    generateHeatmap(distribution)
+
+                // 缓存数据用于图表
+                if (type == "day") {
+                    dailyHeatmapData = distribution.data
+                    // 如果这是为折线图获取的数据，更新月度折线图
+                    if (isForChart && !isYearView) {
+                        setupMonthlyChart(dailyHeatmapData)
+                    }
+                } else if (type == "month") {
+                    monthlyHeatmapData = distribution.data
+                    // 如果这是为折线图获取的数据，更新年度折线图
+                    if (isForChart && isYearView) {
+                        setupYearlyChart(monthlyHeatmapData)
+                    }
+                }
+
+                // 只有当不是为图表获取数据时，才更新热力图
+                if (!isForChart) {
+                    runOnUiThread {
+                        // 重要：确保正确设置period
+                        distribution.period = type
+                        generateHeatmap(distribution)
+                    }
                 }
             }
             is TaskManager.Result.Error -> {
@@ -379,6 +350,11 @@ class StatisticsActivity : AppCompatActivity() {
         }
 
         dailyDistributionContainer!!.addView(heatmapRow)
+
+        // 如果当前在月度视图，更新月度折线图
+        if (!isYearView) {
+            setupMonthlyChart(data)
+        }
     }
 
     // 生成周视图热力图 - 显示一年的周数据
@@ -571,156 +547,132 @@ class StatisticsActivity : AppCompatActivity() {
         }
 
         dailyDistributionContainer!!.addView(heatmapRow)
+
+        // 如果当前在年度视图，更新年度折线图
+        if (isYearView) {
+            setupYearlyChart(data)
+        }
     }
 
-    private fun generateCustomHeatmap(data: List<FocusDistributionData>, monthRow: LinearLayout) {
-        // 自定义视图可以根据需求定制，这里简单实现为一个基于日期的线性展示
+    private fun setupMonthlyChart(data: Map<String, Int>) {
+        try {
+            runOnUiThread {
+                // 设置月度折线图
+                val entries: MutableList<Entry> = ArrayList()
 
-        // 添加日期标签
-        for (item in data) {
-            val dateText = TextView(this)
-            dateText.layoutParams = LinearLayout.LayoutParams(
-                resources.getDimensionPixelSize(R.dimen.heatmap_cell_width),
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            dateText.text = item.date
-            dateText.textAlignment = View.TEXT_ALIGNMENT_CENTER
-            dateText.textSize = 10f
-            monthRow.addView(dateText)
-        }
+                // 获取当前年月
+                val cal = Calendar.getInstance()
+                cal.time = calendar.time
+                val year = cal.get(Calendar.YEAR)
+                val month = cal.get(Calendar.MONTH) + 1
+                val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
 
-        // 创建活动行
-        val activityRow = LinearLayout(this)
-        activityRow.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-        activityRow.orientation = LinearLayout.HORIZONTAL
+                // 为每一天添加数据点
+                for (day in 1..daysInMonth) {
+                    val dateKey = String.format("%d-%02d-%02d", year, month, day)
+                    val duration = data[dateKey] ?: 0
+                    // 将分钟转换为小时
+                    val hours = duration / 60f
+                    entries.add(Entry(day.toFloat(), hours))
+                }
 
-        // 添加"活动"标签
-        val activityLabel = TextView(this)
-        activityLabel.layoutParams = LinearLayout.LayoutParams(
-            resources.getDimensionPixelSize(R.dimen.heatmap_day_width),
-            resources.getDimensionPixelSize(R.dimen.heatmap_cell_height)
-        )
-        activityLabel.text = "活动"
-        activityLabel.textSize = 12f
-        activityRow.addView(activityLabel)
+                if (entries.isEmpty()) {
+                    Log.e(TAG, "月度专注数据为空")
+                    Toast.makeText(applicationContext, "本月没有专注数据", Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
 
-        // 为每个数据点添加热力图单元格
-        for (item in data) {
-            val cell = createHeatmapCell(item.level)
-            activityRow.addView(cell)
-        }
+                val dataSet = LineDataSet(entries, "每日任务时长 (小时)")
+                dataSet.color = Color.BLUE
+                dataSet.setCircleColor(Color.BLUE)
+                dataSet.valueTextSize = 10f
+                dataSet.lineWidth = 2f
 
-        dailyDistributionContainer!!.addView(activityRow)
-    }
+                val lineData = LineData(dataSet)
+                monthlyChart!!.data = lineData
 
-    private fun createHeatmapCell(level: Int): View {
-        val cell = View(this)
-        val cellParams = LinearLayout.LayoutParams(
-            resources.getDimensionPixelSize(R.dimen.heatmap_cell_width),
-            resources.getDimensionPixelSize(R.dimen.heatmap_cell_height)
-        )
-        cellParams.setMargins(2, 2, 2, 2)
-        cell.layoutParams = cellParams
+                // 自定义X轴
+                val xAxis = monthlyChart!!.xAxis
+                xAxis.position = XAxis.XAxisPosition.BOTTOM
+                xAxis.granularity = 1f
 
-        // 根据活动级别设置颜色
-        when (level) {
-            0 -> cell.setBackgroundColor(Color.parseColor("#ebedf0")) // 无活动
-            1 -> cell.setBackgroundColor(Color.parseColor("#c6e48b")) // 低活动
-            2 -> cell.setBackgroundColor(Color.parseColor("#7bc96f")) // 中等活动
-            3 -> cell.setBackgroundColor(Color.parseColor("#239a3b")) // 高活动
-            4 -> cell.setBackgroundColor(Color.parseColor("#196127")) // 非常高活动
-            else -> cell.setBackgroundColor(Color.parseColor("#ebedf0")) // 默认无活动
-        }
+                // 设置当前月份的天数标签
+                val days = arrayOfNulls<String>(daysInMonth + 1)
+                for (i in 1..daysInMonth) {
+                    days[i] = i.toString()
+                }
+                xAxis.valueFormatter = IndexAxisValueFormatter(days)
+                xAxis.axisMinimum = 1f
+                xAxis.axisMaximum = daysInMonth.toFloat()
 
-        return cell
-    }
-
-
-    private fun setupMonthlyChart(monthlyData: List<MonthlyDistributionData>) {
-        runOnUiThread {
-            // 设置月度折线图
-            val entries: MutableList<Entry> = ArrayList()
-
-            // 使用API获取的月度数据
-            for (dataPoint in monthlyData) {
-                // 将分钟转换为小时
-                val hours = dataPoint.duration_minutes / 60f
-                entries.add(Entry(dataPoint.day.toFloat(), hours))
+                monthlyChart!!.description.isEnabled = false
+                monthlyChart!!.animateX(1000)
+                monthlyChart!!.invalidate()
             }
-
-            val dataSet = LineDataSet(entries, "每日任务时长 (小时)")
-            dataSet.color = Color.BLUE
-            dataSet.setCircleColor(Color.BLUE)
-            dataSet.valueTextSize = 10f
-            dataSet.lineWidth = 2f
-
-            val lineData = LineData(dataSet)
-            monthlyChart!!.data = lineData
-
-            // 自定义X轴
-            val xAxis = monthlyChart!!.xAxis
-            xAxis.position = XAxis.XAxisPosition.BOTTOM
-            xAxis.granularity = 1f
-
-            // 设置当前月份的天数标签
-            val cal = Calendar.getInstance()
-            cal.time = calendar.time
-            val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-            val days = arrayOfNulls<String>(daysInMonth + 1)
-            for (i in 1..daysInMonth) {
-                days[i] = i.toString()
+        } catch (e: Exception) {
+            Log.e(TAG, "设置月度图表时出错", e)
+            runOnUiThread {
+                Toast.makeText(applicationContext, "设置月度图表时出错: ${e.message}", Toast.LENGTH_SHORT).show()
             }
-            xAxis.valueFormatter = IndexAxisValueFormatter(days)
-            xAxis.axisMinimum = 1f
-            xAxis.axisMaximum = daysInMonth.toFloat()
-
-            monthlyChart!!.description.isEnabled = false
-            monthlyChart!!.animateX(1000)
-            monthlyChart!!.invalidate()
         }
     }
 
-    private fun setupYearlyChart(yearlyData: List<YearlyDistributionData>) {
-        runOnUiThread {
-            // 设置年度折线图
-            val entries: MutableList<Entry> = ArrayList()
+    private fun setupYearlyChart(data: Map<String, Int>) {
+        try {
+            runOnUiThread {
+                // 设置年度折线图
+                val entries: MutableList<Entry> = ArrayList()
 
-            // 使用API获取的年度数据
-            for (dataPoint in yearlyData) {
-                // 将分钟转换为小时
-                val hours = dataPoint.duration_minutes / 60f
-                entries.add(Entry(dataPoint.month.toFloat(), hours))
+                // 获取当前年份
+                val currentYear = yearFormatter.format(calendar.time)
+
+                // 为每个月添加数据点
+                for (month in 1..12) {
+                    val monthKey = String.format("%s-%02d", currentYear, month)
+                    val duration = data[monthKey] ?: 0
+                    // 将分钟转换为小时
+                    val hours = duration / 60f
+                    entries.add(Entry(month.toFloat(), hours))
+                }
+
+                if (entries.isEmpty()) {
+                    Log.e(TAG, "年度专注数据为空")
+                    Toast.makeText(applicationContext, "本年没有专注数据", Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+
+                val dataSet = LineDataSet(entries, "月平均任务时长 (小时)")
+                dataSet.color = Color.GREEN
+                dataSet.setCircleColor(Color.GREEN)
+                dataSet.valueTextSize = 10f
+                dataSet.lineWidth = 2f
+
+                val lineData = LineData(dataSet)
+                yearlyChart!!.data = lineData
+
+                // 自定义X轴
+                val xAxis = yearlyChart!!.xAxis
+                xAxis.position = XAxis.XAxisPosition.BOTTOM
+                xAxis.granularity = 1f
+
+                // 设置月份标签
+                val months = arrayOf(
+                    "", "1月", "2月", "3月", "4月", "5月", "6月",
+                    "7月", "8月", "9月", "10月", "11月", "12月"
+                )
+                xAxis.valueFormatter = IndexAxisValueFormatter(months)
+                xAxis.axisMinimum = 1f
+                xAxis.axisMaximum = 12f
+
+                yearlyChart!!.description.isEnabled = false
+                yearlyChart!!.animateX(1000)
+                yearlyChart!!.invalidate()
             }
-
-            val dataSet = LineDataSet(entries, "月平均任务时长 (小时)")
-            dataSet.color = Color.GREEN
-            dataSet.setCircleColor(Color.GREEN)
-            dataSet.valueTextSize = 10f
-            dataSet.lineWidth = 2f
-
-            val lineData = LineData(dataSet)
-            yearlyChart!!.data = lineData
-
-            // 自定义X轴
-            val xAxis = yearlyChart!!.xAxis
-            xAxis.position = XAxis.XAxisPosition.BOTTOM
-            xAxis.granularity = 1f
-
-            // 设置月份标签
-            val months = arrayOf(
-                "", "1月", "2月", "3月", "4月", "5月", "6月",
-                "7月", "8月", "9月", "10月", "11月", "12月"
-            )
-            xAxis.valueFormatter = IndexAxisValueFormatter(months)
-            xAxis.axisMinimum = 1f
-            xAxis.axisMaximum = 12f
-
-            yearlyChart!!.description.isEnabled = false
-            yearlyChart!!.animateX(1000)
-            yearlyChart!!.invalidate()
+        } catch (e: Exception) {
+            Log.e(TAG, "设置年度图表时出错", e)
+            runOnUiThread {
+                Toast.makeText(applicationContext, "设置年度图表时出错: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -835,8 +787,15 @@ class StatisticsActivity : AppCompatActivity() {
             monthlyViewContainer!!.visibility = View.VISIBLE
             yearlyViewContainer!!.visibility = View.GONE
             updateDateTitles()
-            lifecycleScope.launch {
-                loadMonthlyFocusData()
+
+            // 确保日视图数据已加载，用于月度折线图
+            if (currentDistributionType != "day") {
+                lifecycleScope.launch {
+                    loadFocusDistribution("day", true)
+                }
+            } else if (dailyHeatmapData.isNotEmpty()) {
+                // 如果数据已存在，直接使用
+                setupMonthlyChart(dailyHeatmapData)
             }
         }
 
@@ -846,8 +805,15 @@ class StatisticsActivity : AppCompatActivity() {
             monthlyViewContainer!!.visibility = View.GONE
             yearlyViewContainer!!.visibility = View.VISIBLE
             updateDateTitles()
-            lifecycleScope.launch {
-                loadYearlyFocusData()
+
+            // 确保月视图数据已加载，用于年度折线图
+            if (currentDistributionType != "month") {
+                lifecycleScope.launch {
+                    loadFocusDistribution("month", true)
+                }
+            } else if (monthlyHeatmapData.isNotEmpty()) {
+                // 如果数据已存在，直接使用
+                setupYearlyChart(monthlyHeatmapData)
             }
         }
 
@@ -858,6 +824,7 @@ class StatisticsActivity : AppCompatActivity() {
     }
 
     private fun setupDateNavigationButtons() {
+        /*
         btnPrevDate!!.setOnClickListener {
             navigateDate(-1)
         }
@@ -865,6 +832,7 @@ class StatisticsActivity : AppCompatActivity() {
         btnNextDate!!.setOnClickListener {
             navigateDate(1)
         }
+        */
 
         btnPrevMonth!!.setOnClickListener {
             navigateMonth(-1)
@@ -889,6 +857,13 @@ class StatisticsActivity : AppCompatActivity() {
         // 重新加载数据
         lifecycleScope.launch {
             loadFocusDistribution(currentDistributionType)
+
+            // 如果需要，为折线图获取数据
+            if (isYearView && currentDistributionType != "month") {
+                loadFocusDistribution("month", true)
+            } else if (!isYearView && currentDistributionType != "day") {
+                loadFocusDistribution("day", true)
+            }
         }
     }
 
@@ -897,12 +872,14 @@ class StatisticsActivity : AppCompatActivity() {
         if (isYearView) {
             calendar.add(Calendar.YEAR, direction)
             lifecycleScope.launch {
-                loadYearlyFocusData()
+                // 为年度视图获取月视图数据
+                loadFocusDistribution("month", true)
             }
         } else {
             calendar.add(Calendar.MONTH, direction)
             lifecycleScope.launch {
-                loadMonthlyFocusData()
+                // 为月度视图获取日视图数据
+                loadFocusDistribution("day", true)
             }
         }
 
