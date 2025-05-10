@@ -11,10 +11,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,8 +26,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,7 +33,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -60,25 +55,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.times
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.lifecycleScope
 import com.example.big.models.TaskResponse
 import com.example.big.utils.TaskManager
 import com.example.big.utils.UserManager
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -87,7 +80,6 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 class KanbanViewActivityCompose : ComponentActivity() {
@@ -560,44 +552,24 @@ fun DateSelectionBar(
     }
 }
 
-@Composable
-fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
-    val startHour = 7  // 开始显示的小时
-    val endHour = 23   // 结束显示的小时
-    val scrollState = rememberScrollState()
-    val fiveMinHeightDp = 6.dp  // 每5分钟的高度
-    val hourHeightDp = fiveMinHeightDp * 12  // 每小时的总高度
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+private fun updateTaskTime(
+    task: Task,
+    newDate: Calendar,
+    newStartTotalMinutes: Int,
+    newEndTotalMinutes: Int,
+    timeTasksByDate: Map<Calendar, List<Task>>,
+    coroutineScope: CoroutineScope,
+    originalTasksList: List<Task>,
+    onTasksUpdated: (List<Task>) -> Unit,
+    onUpdateMessage: (String?) -> Unit,
+    onIsUpdating: (Boolean) -> Unit
+) = coroutineScope.launch {
+    val logTag = "UpdateTaskTime"
 
-    // 状态管理 - 更新任务的反馈消息
-    var updateMessage by remember { mutableStateOf<String?>(null) }
-    var isUpdating by remember { mutableStateOf(false) }
-
-    // 计算时间线总高度
-    val timelineHeight = (endHour - startHour + 1) * hourHeightDp
-
-    // 无时间任务（按日期分组）
-    val noTimeTasksByDate = dates.associateWith { date ->
-        allTasks.filter { task ->
-            isSameDay(task.date, date.time) &&
-                    (task.timeRange == "未设定时间" || task.durationMinutes == 0)
-        }
-    }
-
-    // 有时间的任务（按日期分组）
-    val timeTasksByDate = dates.associateWith { date ->
-        allTasks.filter { task ->
-            isSameDay(task.date, date.time) &&
-                    task.timeRange != "未设定时间" &&
-                    task.durationMinutes > 0
-        }
-    }
-
-    // 任务更新处理函数
-    // 修改 updateTaskTime 的定义，使其返回 Unit 而不是 Job
-    val updateTaskTime: (Task, Calendar, Int, Int) -> Unit = { task, newDate, newStartTotalMinutes, newEndTotalMinutes ->
-        isUpdating = true
+    try {
+        onIsUpdating(true)
+        Log.d(logTag, "开始处理任务移动: 任务=${task.id}, 目标日期=${SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(newDate.time)}")
+        Log.d(logTag, "新时间段: ${newStartTotalMinutes/60}:${newStartTotalMinutes%60} - ${newEndTotalMinutes/60}:${newEndTotalMinutes%60}")
 
         // 计算新的开始和结束时间
         val newStartHour = newStartTotalMinutes / 60
@@ -605,64 +577,298 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
         val newEndHour = newEndTotalMinutes / 60
         val newEndMinute = newEndTotalMinutes % 60
 
-        // 格式化新的时间范围
+        // 格式化时间字符串
         val startTimeStr = String.format("%02d:%02d", newStartHour, newStartMinute)
         val endTimeStr = String.format("%02d:%02d", newEndHour, newEndMinute)
         val newTimeRange = "$startTimeStr - $endTimeStr"
-
-        // 计算新的持续时间
         val newDurationMinutes = newEndTotalMinutes - newStartTotalMinutes
 
-        // 创建新的日期和结束时间
-        val newDueDate = Calendar.getInstance().apply {
-            time = newDate.time
-            set(Calendar.HOUR_OF_DAY, newEndHour)
-            set(Calendar.MINUTE, newEndMinute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.time
+        // 创建一个临时更新后的任务对象用于冲突检测和UI预览
+        val updatedTask = Task(
+            id = task.id,
+            title = task.title,
+            timeRange = newTimeRange,
+            date = newDate.time,
+            durationMinutes = newDurationMinutes,
+            important = task.isImportant,
+            description = task.description,
+            place = task.place
+        ).apply {
+            isFinished = task.isFinished
+            isDelayed = task.isDelayed
+            category = task.category
+            dueDate = task.dueDate
+        }
 
-        // 在外部启动协程，而不是让updateTaskTime返回Job
-        coroutineScope.launch {
+        // 重要：获取最新任务列表再进行冲突检测
+        val latestTasks = getLatestTasksFromServer()
+        if (latestTasks == null) {
+            onUpdateMessage("无法获取最新任务状态")
+            onIsUpdating(false)
+            return@launch
+        }
+
+        // 准备进行冲突检测
+        val tasksOnTargetDate = latestTasks.filter {
+            isSameDay(it.date, newDate.time) && it.id != task.id
+        }
+
+        Log.d(logTag, "目标日期有 ${tasksOnTargetDate.size} 个其他任务")
+
+        // 检查时间冲突
+        val conflicts = tasksOnTargetDate.filter { otherTask ->
             try {
-                // 准备更新请求对象，保留原任务的其他属性
-                val request = com.example.big.models.CreateTaskRequest(
-                    title = task.title,
-                    time_range = newTimeRange,
-                    date = newDate.time,
-                    duration_minutes = newDurationMinutes,
-                    is_important = task.isImportant,
-                    description = task.description ?: "",
-                    place = task.place ?: "",
-                    due_date = newDueDate,
-                    is_finished = task.isFinished,
-                    is_delayed = task.isDelayed,
-                    category = task.category ?: "其他"
-                )
-
-                // 调用TaskManager更新任务
-                val result = TaskManager.updateTask(task.id, request)
-
-                when (result) {
-                    is TaskManager.Result.Success -> {
-                        updateMessage = "任务时间已更新"
-                        // 可以添加刷新任务列表的逻辑
-                    }
-                    is TaskManager.Result.Error -> {
-                        updateMessage = "更新失败: ${result.message}"
-                    }
+                // 跳过无时间任务
+                if (otherTask.timeRange == "未设定时间" || otherTask.durationMinutes <= 0) {
+                    return@filter false
                 }
-            } catch (e: Exception) {
-                updateMessage = "更新出错: ${e.message}"
-                Log.e("TaskUpdate", "任务更新失败", e)
-            } finally {
-                isUpdating = false
 
-                // 3秒后清除消息
-                delay(3000)
-                updateMessage = null
+                // 解析时间
+                val otherTimeResult = parseTimeRange(otherTask.timeRange)
+                if (!otherTimeResult.isValid) {
+                    Log.w(logTag, "无法解析任务时间: ${otherTask.timeRange}")
+                    return@filter false
+                }
+
+                // 计算分钟数
+                val otherStartMin = otherTimeResult.startHour * 60 + otherTimeResult.startMinute
+                val otherEndMin = otherTimeResult.endHour * 60 + otherTimeResult.endMinute
+
+                // 检查重叠
+                val hasOverlap = newStartTotalMinutes < otherEndMin &&
+                        newEndTotalMinutes > otherStartMin
+
+                if (hasOverlap) {
+                    Log.d(logTag, "发现冲突: ${otherTask.title} (${otherTask.timeRange})")
+                }
+
+                hasOverlap
+            } catch (e: Exception) {
+                Log.e(logTag, "检查冲突时出错", e)
+                false
             }
         }
+
+        // 处理冲突
+        if (conflicts.isNotEmpty()) {
+            val conflictNames = conflicts.joinToString(", ") { it.title }
+            val conflictTimes = conflicts.joinToString(", ") { it.timeRange }
+
+            Log.d(logTag, "发现冲突，取消更新: $conflictNames")
+            onUpdateMessage("与已有任务冲突: $conflictNames ($conflictTimes)")
+            delay(3000)
+            onUpdateMessage(null)
+            onIsUpdating(false)
+            return@launch
+        }
+
+        // 先更新UI
+        Log.d(logTag, "无冲突，更新UI")
+        val updatedTasks = originalTasksList.map {
+            if (it.id == task.id) updatedTask else it
+        }
+        onTasksUpdated(updatedTasks)
+        onUpdateMessage("正在更新任务...")
+
+        // 然后更新服务器
+        try {
+            // 准备结束时间
+            val newDueDate = Calendar.getInstance().apply {
+                time = newDate.time
+                set(Calendar.HOUR_OF_DAY, newEndHour)
+                set(Calendar.MINUTE, newEndMinute)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.time
+
+            // 准备请求对象
+            val request = com.example.big.models.CreateTaskRequest(
+                title = task.title,
+                time_range = newTimeRange,
+                date = newDate.time,
+                duration_minutes = newDurationMinutes,
+                is_important = task.isImportant,
+                description = task.description ?: "",
+                place = task.place ?: "",
+                due_date = newDueDate,
+                is_finished = task.isFinished,
+                is_delayed = task.isDelayed,
+                category = task.category ?: "其他"
+            )
+
+            // 提交更新
+            Log.d(logTag, "提交到服务器")
+            val result = TaskManager.updateTask(task.id, request)
+
+            when (result) {
+                is TaskManager.Result.Success -> {
+                    Log.d(logTag, "服务器更新成功")
+                    onUpdateMessage("任务已更新")
+
+                    // 刷新任务列表
+                    val refreshedTasks = getLatestTasksFromServer()
+                    if (refreshedTasks != null) {
+                        onTasksUpdated(refreshedTasks)
+                    }
+                }
+                is TaskManager.Result.Error -> {
+                    Log.e(logTag, "服务器更新失败: ${result.message}")
+                    onUpdateMessage("更新失败: ${result.message}")
+                    onTasksUpdated(originalTasksList)  // 恢复原始状态
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(logTag, "更新过程中出错", e)
+            onUpdateMessage("更新出错: ${e.message}")
+            onTasksUpdated(originalTasksList)  // 恢复原始状态
+        } finally {
+            delay(2000)
+            onUpdateMessage(null)
+            onIsUpdating(false)
+        }
+    } catch (e: Exception) {
+        Log.e(logTag, "处理更新请求时出错", e)
+        onUpdateMessage("处理失败: ${e.message}")
+        onIsUpdating(false)
+        delay(2000)
+        onUpdateMessage(null)
+    }
+}
+
+// 辅助函数：从服务器获取最新任务列表
+private suspend fun getLatestTasksFromServer(): List<Task>? {
+    try {
+        val userId = UserManager.getUserId() ?: return null
+
+        val response = TaskManager.getAllTasksWithPagination(userId)
+        return when (response) {
+            is TaskManager.Result.Success -> {
+                val taskResponses = response.data
+                val tasks = convertTaskResponsesToTasks(taskResponses)
+                val importantTasks = tasks.filter { it.isImportant }
+                sortTasksByTime(importantTasks)
+            }
+            is TaskManager.Result.Error -> null
+        }
+    } catch (e: Exception) {
+        Log.e("TaskFetch", "获取最新任务失败", e)
+        return null
+    }
+}
+
+// 辅助函数：按日期分组任务
+private fun groupTasksByDate(tasks: List<Task>, targetDate: Calendar): List<Task> {
+    return tasks.filter { task ->
+        isSameDay(task.date, targetDate.time)
+    }
+}
+
+// 辅助类：时间解析结果
+data class TimeParseResult(
+    val startHour: Int,
+    val startMinute: Int,
+    val endHour: Int,
+    val endMinute: Int,
+    val isValid: Boolean
+)
+
+// 辅助函数：解析时间范围
+private fun parseTimeRange(timeRange: String): TimeParseResult {
+    try {
+        val parts = timeRange.split(" - ")
+        if (parts.size != 2) {
+            return TimeParseResult(0, 0, 0, 0, false)
+        }
+
+        val startParts = parts[0].trim().split(":")
+        val endParts = parts[1].trim().split(":")
+
+        if (startParts.size != 2 || endParts.size != 2) {
+            return TimeParseResult(0, 0, 0, 0, false)
+        }
+
+        val startHour = startParts[0].toInt()
+        val startMinute = startParts[1].toInt()
+        val endHour = endParts[0].toInt()
+        val endMinute = endParts[1].toInt()
+
+        return TimeParseResult(startHour, startMinute, endHour, endMinute, true)
+    } catch (e: Exception) {
+        return TimeParseResult(0, 0, 0, 0, false)
+    }
+}
+
+@Composable
+fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
+    val startHour = 0
+    val endHour = 23
+    val scrollState = rememberScrollState()
+    val fiveMinHeightDp = 6.dp
+    val hourHeightDp = fiveMinHeightDp * 12
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val logTag = "MultiDayTimeline"
+
+    // 当allTasks更新时，重置tasks状态 - 确保视图始终使用最新数据
+    var tasks by remember { mutableStateOf(allTasks) }
+    var updateMessage by remember { mutableStateOf<String?>(null) }
+    var isUpdating by remember { mutableStateOf(false) }
+
+    // 当外部任务列表变化时更新本地状态
+    LaunchedEffect(allTasks) {
+        if (allTasks != tasks) {
+            Log.d(logTag, "检测到任务列表变化，更新本地状态")
+            tasks = allTasks
+        }
+    }
+
+    // 计算时间线总高度
+    val timelineHeight = ((endHour - startHour + 1) * hourHeightDp.value).dp
+
+    // 每次任务列表变化时，重新计算分组
+    val noTimeTasksByDate = remember(tasks) {
+        dates.associateWith { date ->
+            tasks.filter { task ->
+                isSameDay(task.date, date.time) &&
+                        (task.timeRange == "未设定时间" || task.durationMinutes == 0)
+            }
+        }
+    }
+
+    val timeTasksByDate = remember(tasks) {
+        dates.associateWith { date ->
+            tasks.filter { task ->
+                isSameDay(task.date, date.time) &&
+                        task.timeRange != "未设定时间" &&
+                        task.durationMinutes > 0
+            }
+        }
+    }
+
+    // 修改为使用新的封装函数处理任务更新
+    val updateTaskTimeWrapper: (Task, Calendar, Int, Int) -> Unit = { task, newDate, newStartMinutes, newEndMinutes ->
+        updateTaskTime(
+            task = task,
+            newDate = newDate,
+            newStartTotalMinutes = newStartMinutes,
+            newEndTotalMinutes = newEndMinutes,
+            timeTasksByDate = timeTasksByDate,
+            coroutineScope = coroutineScope,
+            originalTasksList = tasks,
+            onTasksUpdated = { updatedTasks ->
+                Log.d(logTag, "任务更新成功，更新本地任务列表")
+                // 确保更新后的任务是全新的列表实例
+                tasks = updatedTasks.toList()
+            },
+            onUpdateMessage = { message ->
+                Log.d(logTag, "显示更新消息: $message")
+                updateMessage = message
+            },
+            onIsUpdating = { updating ->
+                Log.d(logTag, "更新状态: $updating")
+                isUpdating = updating
+            }
+        )
     }
 
     Box(
@@ -673,10 +879,12 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
                 .fillMaxSize()
                 .verticalScroll(scrollState)
         ) {
-            // 无时间任务区域
-            if (noTimeTasksByDate.any { it.value.isNotEmpty() }) {
-                NoTimeTasksSection(noTimeTasksByDate, dates)
-            }
+            // 无时间任务区域 - 确保始终显示，哪怕没有任务也显示标题
+            NoTimeTasksSection(
+                tasksByDate = noTimeTasksByDate,
+                dates = dates,
+                onTaskMoved = updateTaskTimeWrapper
+            )
 
             // 时间线区域 - 使用绝对定位
             Box(
@@ -686,7 +894,7 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
             ) {
                 // 绘制时间格线
                 for (hour in startHour..endHour) {
-                    val hourOffset = (hour - startHour) * hourHeightDp
+                    val hourOffset = ((hour - startHour) * hourHeightDp.value).dp
 
                     // 小时线
                     Row(
@@ -734,9 +942,9 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
 
                 // 在一个Box中放置所有任务，启用绝对定位
                 dates.forEachIndexed { dateIndex, date ->
-                    val tasks = timeTasksByDate[date] ?: emptyList()
+                    val dateTasks = timeTasksByDate[date] ?: emptyList()
 
-                    tasks.forEach { task ->
+                    dateTasks.forEach { task ->
                         // 解析任务时间
                         val timeParts = task.timeRange.split(" - ")
                         if (timeParts.size != 2) return@forEach
@@ -768,15 +976,19 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
                             val leftPosition = 40.dp + (dateIndex * columnWidth).dp
                             val taskWidth = columnWidth.dp - 8.dp
 
-                            // 使用绝对定位放置任务卡片，现在传入任务更新回调
-                            TaskCard(
+                            // 使用绝对定位放置任务卡片，现在传入任务更新回调和日期信息
+                            DraggableTaskCard(
                                 task = task,
                                 heightDp = taskHeight,
                                 modifier = Modifier
                                     .width(taskWidth)
                                     .offset(x = leftPosition + 4.dp, y = topOffsetDp.dp)
                                     .zIndex(1f),
-                                onTaskMoved = updateTaskTime
+                                onTaskMoved = updateTaskTimeWrapper,
+                                visibleDates = dates,
+                                dateIndex = dateIndex,
+                                startHour = startHour,
+                                hourHeightDp = hourHeightDp
                             )
                         }
                     }
@@ -788,10 +1000,17 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
         if (isUpdating) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize(),
+                    .size(36.dp)
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 80.dp)
+                    .background(MaterialTheme.colorScheme.surface, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    strokeWidth = 2.dp
+                )
             }
         }
 
@@ -852,15 +1071,47 @@ fun NoTimeTasksSection(
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        tasks.forEach { task ->
-                            TaskCard(
-                                task = task,
-                                heightDp = 80.dp,
+                        // 日期标题
+                        val dateFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
+                        Text(
+                            text = dateFormat.format(date.time),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+
+                        // 任务列表
+                        if (tasks.isEmpty()) {
+                            // 显示空状态
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 2.dp),
-                                onTaskMoved = onTaskMoved
-                            )
+                                    .height(40.dp)
+                                    .background(Color(0xFFEEEEEE), RoundedCornerShape(4.dp))
+                                    .padding(4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "无任务",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        } else {
+                            // 显示任务
+                            tasks.forEach { task ->
+                                SimpleTaskCard(
+                                    task = task,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp),
+                                    onMoveToTimeline = { task, date ->
+                                        // 将无时间任务移动到时间线上的回调
+                                        // 默认移动到当天的8:00-9:00
+                                        onTaskMoved?.invoke(task, date, 8 * 60, 9 * 60)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -871,114 +1122,323 @@ fun NoTimeTasksSection(
     }
 }
 
+// 简化版任务卡片 - 用于无时间任务
 @Composable
-fun TaskCard(
+fun SimpleTaskCard(
+    task: Task,
+    modifier: Modifier = Modifier,
+    onMoveToTimeline: ((Task, Calendar) -> Unit)? = null
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    Card(
+        modifier = modifier
+            .clickable {
+                val intent = Intent(context, EditTaskActivity::class.java)
+                intent.putExtra("task_id", task.id)
+                context.startActivity(intent)
+            },
+        colors = CardDefaults.cardColors(
+            containerColor = if (task.isImportant) Color(0xFFE8F5E9) else Color(0xFFE3F2FD)
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+        ) {
+            // 重要性指示条
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(24.dp)
+                    .background(
+                        if (task.isImportant) Color(0xFF66BB6A) else Color(0xFF42A5F5)
+                    )
+                    .align(Alignment.CenterStart)
+            )
+
+            // 任务标题
+            Text(
+                text = task.title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 24.dp)
+                    .align(Alignment.Center)
+            )
+
+            // 菜单按钮
+            IconButton(
+                onClick = { showMenu = true },
+                modifier = Modifier
+                    .size(24.dp)
+                    .align(Alignment.CenterEnd)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "更多选项",
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+
+// 简化的KanbanDragState，只跟踪当前拖动的卡片ID
+object KanbanDragState {
+    var currentDraggingId: String? = null
+}
+
+@Composable
+fun DraggableTaskCard(
     task: Task,
     heightDp: Dp,
     modifier: Modifier = Modifier,
-    onTaskMoved: ((Task, Calendar, Int, Int) -> Unit)? = null
+    onTaskMoved: ((Task, Calendar, Int, Int) -> Unit)? = null,
+    visibleDates: List<Calendar>,
+    dateIndex: Int,
+    startHour: Int,
+    hourHeightDp: Dp
 ) {
     val context = LocalContext.current
     val minHeight = 50.dp
+    val logTag = "DraggableTask"
 
-    // 当前高度
+    // 任务卡片高度
     val actualHeight = if (heightDp.value < minHeight.value) minHeight else heightDp
     val isMinHeight = actualHeight.value <= 60f
 
-    // 拖拽状态
+    // 为每个卡片创建唯一键
+    val uniqueCardKey = remember(task.id, task.timeRange, dateIndex) {
+        "${task.id}_${task.timeRange}_${dateIndex}"
+    }
+
+    // 关键状态变量
+    var isDragging by remember { mutableStateOf(false) }
     var offsetX by remember { mutableStateOf(0f) }
     var offsetY by remember { mutableStateOf(0f) }
-    var isDragging by remember { mutableStateOf(false) }
+    var lastTapTime by remember { mutableStateOf(0L) }
+    var hasMoved by remember { mutableStateOf(false) }
+    var previewTimeRange by remember { mutableStateOf<String?>(null) }
+    var previewDate by remember { mutableStateOf<Calendar?>(null) }
+    var calculatedStartMinutes by remember { mutableStateOf(0) }
+    var calculatedEndMinutes by remember { mutableStateOf(0) }
 
-    // 本地密度换算
+    // 新增：控制卡片更新和位置状态
+    var isUpdating by remember { mutableStateOf(false) }
+    var keepPosition by remember { mutableStateOf(false) }
+
+    // 解析任务初始时间以便后续计算
+    val timeInfo = parseTaskTime(task.timeRange, task.durationMinutes)
+    val startHourValue = timeInfo.first
+    val startMinuteValue = timeInfo.second
+    val durationMinutes = timeInfo.fifth
+
+    // 初始化或任务变化时重置状态
+    LaunchedEffect(task.id, task.timeRange) {
+        // 如果正在更新或需要保持位置，不重置位置偏移
+        if (!isUpdating && !keepPosition) {
+            offsetX = 0f
+            offsetY = 0f
+        }
+
+        // 始终重置其他状态
+        isDragging = false
+        previewTimeRange = null
+        previewDate = null
+        hasMoved = false
+    }
+
+    // 密度和尺寸计算
     val density = LocalDensity.current
+    val configuration = LocalConfiguration.current
+    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+    val leftPaddingPx = with(density) { 40.dp.toPx() }
+    val columnWidth = (screenWidthPx - leftPaddingPx) / visibleDates.size
+    val columnWidthPx = columnWidth
+    val hourHeightPx = with(density) { hourHeightDp.toPx() }
+    val timelineHeight = with(density) { ((24 - startHour) * hourHeightDp.value).dp.toPx() }
 
-    // 用于记录任务的原始位置信息，拖拽取消时恢复位置
-    var originalX by remember { mutableStateOf(0f) }
-    var originalY by remember { mutableStateOf(0f) }
-
-    // 时间参数
-    val hourHeightDp = 72.dp
-    val startHour = 7
-
-    // 获取当前可见的日期
-    val currentDate = Calendar.getInstance()
-    val visibleDates = listOf(
-        (currentDate.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, -1) },
-        currentDate.clone() as Calendar,
-        (currentDate.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, 1) }
-    )
+    // 计算允许的拖动范围
+    val maxDragLeft = -(dateIndex * columnWidth)
+    val maxDragRight = ((visibleDates.size - dateIndex - 1) * columnWidth)
+    fun resetCard() {
+        if (!keepPosition) {
+            offsetX = 0f
+            offsetY = 0f
+        }
+        previewTimeRange = null
+        previewDate = null
+        hasMoved = false
+    }
 
     Card(
         modifier = modifier
             .height(actualHeight)
             .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-            .pointerInput(Unit) {
+            .pointerInput(uniqueCardKey) {
                 detectDragGestures(
                     onDragStart = {
-                        isDragging = true
-                        originalX = offsetX
-                        originalY = offsetY
+                        if (isUpdating) return@detectDragGestures
+
+                        lastTapTime = System.currentTimeMillis()
+                        hasMoved = false
+                        keepPosition = false
+
+                        // 只允许一个卡片拖动
+                        if (KanbanDragState.currentDraggingId == null ||
+                            KanbanDragState.currentDraggingId == uniqueCardKey) {
+                            isDragging = true
+                            KanbanDragState.currentDraggingId = uniqueCardKey
+                            Log.d(logTag, "开始拖动: $uniqueCardKey")
+                        }
                     },
                     onDragEnd = {
-                        isDragging = false
+                        if (!isDragging) return@detectDragGestures
 
-                        // 防止误触，如果拖动距离太小，恢复原始位置
-                        if (abs(offsetX - originalX) < 20 && abs(offsetY - originalY) < 20) {
-                            offsetX = originalX
-                            offsetY = originalY
+                        Log.d(logTag, "拖动结束 - 偏移: x=$offsetX, y=$offsetY")
 
-                            // 点击事件处理
+                        // 检查是否只是点击而非拖动
+                        val isClickOperation = !hasMoved &&
+                                (System.currentTimeMillis() - lastTapTime < 200)
+
+                        // 清除全局拖动状态
+                        if (KanbanDragState.currentDraggingId == uniqueCardKey) {
+                            KanbanDragState.currentDraggingId = null
+                        }
+
+                        // 处理点击
+                        if (isClickOperation) {
+                            Log.d(logTag, "处理点击操作")
+                            isDragging = false
+                            resetCard()
+
+                            // 启动编辑活动
                             val intent = Intent(context, EditTaskActivity::class.java)
                             intent.putExtra("task_id", task.id)
                             context.startActivity(intent)
                             return@detectDragGestures
                         }
 
-                        // 简化实现：直接根据当前偏移计算新位置
-                        val screenWidth = context.resources.displayMetrics.widthPixels
-                        val leftPadding = with(density) { 40.dp.toPx() }
-                        val availableWidth = screenWidth - leftPadding
-                        val columnWidth = availableWidth / 3
+                        // 处理有效拖动
+                        if (hasMoved && previewDate != null) {
+                            Log.d(logTag, "有效拖动 - 准备更新任务")
+                            Log.d(logTag, "新日期: ${SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(previewDate!!.time)}")
+                            Log.d(logTag, "新时间: $previewTimeRange (分钟: $calculatedStartMinutes-$calculatedEndMinutes)")
 
-                        // 确定在哪一列（第几天）
-                        val dateIndex = ((offsetX + leftPadding) / columnWidth).toInt().coerceIn(0, 2)
+                            // 保存位置信息
+                            keepPosition = true
+                            isUpdating = true
+                            isDragging = false
 
-                        // 计算开始时间
-                        val hourHeightPx = with(density) { hourHeightDp.toPx() }
-                        val totalMinutesFromStart = ((offsetY / hourHeightPx) * 60).toInt()
-                        val newStartHour = startHour + (totalMinutesFromStart / 60)
-                        val newStartMinute = (totalMinutesFromStart % 60) / 5 * 5 // 向下取整到5分钟
+                            // 使用保存的坐标延续视觉效果
+                            val finalDate = previewDate!!
+                            val finalStartMinutes = calculatedStartMinutes
+                            val finalEndMinutes = calculatedEndMinutes
 
-                        // 保持任务原有持续时间
-                        val taskDurationMinutes = task.durationMinutes
+                            // 部分状态重置
+                            previewTimeRange = null
+                            previewDate = null
+                            hasMoved = false
 
-                        // 计算新的结束时间
-                        val totalEndMinutes = totalMinutesFromStart + taskDurationMinutes
-                        val newEndHour = startHour + (totalEndMinutes / 60)
-                        val newEndMinute = (totalEndMinutes % 60) / 5 * 5
+                            // 调用更新回调
+                            onTaskMoved?.invoke(
+                                task,
+                                finalDate,
+                                finalStartMinutes,
+                                finalEndMinutes
+                            )
 
-                        // 获取目标日期
-                        val targetDate = visibleDates[dateIndex]
-
-                        // 调用回调更新任务
-                        onTaskMoved?.invoke(task, targetDate,
-                            newStartHour * 60 + newStartMinute,
-                            newEndHour * 60 + newEndMinute)
+                            // 任务更新完成后的清理
+                            isUpdating = false
+                        } else {
+                            // 无效拖动，重置卡片
+                            Log.d(logTag, "无效拖动，重置卡片")
+                            isDragging = false
+                            resetCard()
+                        }
                     },
                     onDragCancel = {
-                        // 取消拖拽，恢复原始位置
+                        if (KanbanDragState.currentDraggingId == uniqueCardKey) {
+                            KanbanDragState.currentDraggingId = null
+                        }
                         isDragging = false
-                        offsetX = originalX
-                        offsetY = originalY
+                        resetCard()
                     },
                     onDrag = { change, dragAmount ->
+                        if (!isDragging) return@detectDragGestures
+
                         change.consume()
+
+                        // 检测实质性移动
+                        if (abs(dragAmount.x) > 3f || abs(dragAmount.y) > 3f) {
+                            hasMoved = true
+                        }
+
+                        // 更新卡片偏移量
                         offsetX += dragAmount.x
                         offsetY += dragAmount.y
+
+                        // 限制拖动范围
+                        offsetX = offsetX.coerceIn(maxDragLeft, maxDragRight)
+                        offsetY = offsetY.coerceIn(-hourHeightPx * 2, timelineHeight)
+
+                        // 计算新的日期索引
+                        val absoluteX = offsetX + (dateIndex * columnWidthPx) + leftPaddingPx
+                        val relativeX = absoluteX - leftPaddingPx
+                        val newDateIndex = (relativeX / columnWidthPx).toInt().coerceIn(0, visibleDates.size - 1)
+
+                        // 计算新时间
+                        val currentMinutesFromStart = (startHourValue - startHour) * 60 + startMinuteValue
+                        val currentStartYPosition = (currentMinutesFromStart / 60f) * hourHeightPx
+                        val newYPosition = currentStartYPosition + offsetY
+
+                        val totalMinutesRaw = (newYPosition / hourHeightPx * 60).toInt()
+                        // 对齐到5分钟
+                        val snappedMinutes = max(0, (totalMinutesRaw / 5) * 5)
+
+                        // 转换为小时和分钟
+                        val newStartHour = startHour + (snappedMinutes / 60)
+                        val newStartMinute = snappedMinutes % 60
+
+                        if (newDateIndex in visibleDates.indices) {
+                            val newDate = visibleDates[newDateIndex]
+                            previewDate = newDate
+
+                            // 计算结束时间（保持原始持续时间）
+                            val newEndMinutes = snappedMinutes + durationMinutes
+                            val endHour = startHour + (newEndMinutes / 60)
+                            val endMinute = newEndMinutes % 60
+
+                            // 保存分钟数，用于后续更新
+                            calculatedStartMinutes = newStartHour * 60 + newStartMinute
+                            calculatedEndMinutes = endHour * 60 + endMinute
+
+                            // 格式化时间字符串
+                            val startTimeStr = String.format("%02d:%02d", newStartHour, newStartMinute)
+                            val endTimeStr = String.format("%02d:%02d", endHour, endMinute)
+                            previewTimeRange = "$startTimeStr - $endTimeStr"
+                        } else {
+                            previewDate = null
+                            previewTimeRange = null
+                        }
                     }
                 )
-            },
+            }
+        .clickable(enabled = !isDragging) {
+            val intent = Intent(context, EditTaskActivity::class.java)
+            intent.putExtra("task_id", task.id)
+            context.startActivity(intent)
+        },
         colors = CardDefaults.cardColors(
             containerColor = if (task.isImportant)
                 if (isDragging) Color(0xFFBBE0BB) else Color(0xFFE8F5E9)
@@ -989,7 +1449,7 @@ fun TaskCard(
             defaultElevation = if (isDragging) 8.dp else 2.dp
         )
     ) {
-        // Card 内容
+        // 卡片内容
         Box(modifier = Modifier.fillMaxSize()) {
             // 重要性指示条
             Box(
@@ -1000,6 +1460,15 @@ fun TaskCard(
                         if (task.isImportant) Color(0xFF66BB6A) else Color(0xFF42A5F5)
                     )
             )
+
+            // 完成状态背景
+            if (task.isFinished) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.LightGray.copy(alpha = 0.3f))
+                )
+            }
 
             Column(
                 modifier = Modifier
@@ -1012,19 +1481,24 @@ fun TaskCard(
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     maxLines = if (isMinHeight) 2 else 3,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (task.isFinished) Color.Gray else Color.Black
                 )
 
-                // 如果高度足够，显示时间
+                // 时间显示
                 if (!isMinHeight) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = task.timeRange,
+                        text = if (isDragging && previewTimeRange != null)
+                            previewTimeRange!! // 拖动时显示预览时间
+                        else
+                            task.timeRange,
                         fontSize = 12.sp,
-                        color = Color.Gray
+                        color = if (isDragging) Color.DarkGray else Color.Gray,
+                        fontWeight = if (isDragging) FontWeight.Bold else FontWeight.Normal
                     )
 
-                    // 如果高度更足够，显示地点
+                    // 地点显示（如果有）
                     if (actualHeight.value > 90f && task.place != null) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -1035,10 +1509,158 @@ fun TaskCard(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+
+                    // 拖动时显示日期预览
+                    if (isDragging && previewDate != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = SimpleDateFormat("MM月dd日", Locale.getDefault()).format(previewDate!!.time),
+                            fontSize = 11.sp,
+                            color = Color.DarkGray,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
+            }
+
+            // 拖动状态指示器
+            if (isDragging) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(8.dp)
+                        .background(Color.Red, CircleShape)
+                )
             }
         }
     }
+
+    // 辅助函数：重置卡片状态
+}
+
+// 简化计算新日期索引的逻辑
+private fun calculateNewDateIndex(
+    offsetX: Float,
+    dateIndex: Int,  // 使用传入的参数 dateIndex 代替 currentDateIndex
+    leftPaddingPx: Float,
+    columnWidth: Float,
+    maxColumns: Int
+): Int {
+    // 使用卡片的中心点来确定新的列
+    val totalX = offsetX + leftPaddingPx + (dateIndex * columnWidth) + (columnWidth / 2)
+    val relativeX = totalX - leftPaddingPx
+    return (relativeX / columnWidth).toInt().coerceIn(0, maxColumns - 1)
+}
+
+// 简化计算新时间的逻辑
+private fun calculateNewTime(
+    offsetY: Float,
+    currentStartHour: Int,
+    currentStartMinute: Int,
+    hourHeightPx: Float,
+    startHour: Int
+): Pair<Int, Int> {
+    // 当前时间在时间线上的绝对位置
+    val currentMinutesFromStart = (currentStartHour - startHour) * 60 + currentStartMinute
+    val currentY = (currentMinutesFromStart / 60f) * hourHeightPx
+
+    // 新位置 = 当前位置 + 偏移
+    val newY = currentY + offsetY
+
+    // 转换回时间
+    val totalMinutesFromStart = (newY / hourHeightPx * 60).toInt()
+
+    // 取整到最接近的5分钟
+    val snappedMinutes = max(0, (totalMinutesFromStart / 5) * 5)
+
+    // 计算小时和分钟
+    val newHour = startHour + (snappedMinutes / 60)
+    val newMinute = snappedMinutes % 60
+
+    return Pair(newHour, newMinute)
+}
+
+// 提取计算新位置的逻辑到一个单独的函数
+private fun calculateNewPosition(
+    offsetX: Float,
+    offsetY: Float,
+    currentDateIndex: Int,
+    currentStartHour: Int,
+    currentStartMinute: Int,
+    leftPaddingPx: Float,
+    columnWidth: Float,
+    hourHeightPx: Float,
+    startHour: Int,
+    maxColumns: Int
+): Triple<Int, Int, Int> {
+    // 1. 计算新的日期索引（水平位置）
+    val cardCenterX = leftPaddingPx + (currentDateIndex * columnWidth) + (columnWidth / 2) + offsetX
+    val relativeX = cardCenterX - leftPaddingPx
+    val newDateIndex = (relativeX / columnWidth).toInt().coerceIn(0, maxColumns - 1)
+
+    // 2. 计算新的起始时间（垂直位置）
+    // 当前时间在时间线上的绝对Y位置
+    val currentMinutesFromStart = (currentStartHour - startHour) * 60 + currentStartMinute
+    val currentAbsoluteY = (currentMinutesFromStart / 60f) * hourHeightPx
+
+    // 应用偏移后的位置
+    val finalAbsoluteY = currentAbsoluteY + offsetY
+
+    // 转换回时间
+    val newMinutesFromStart = (finalAbsoluteY / hourHeightPx * 60).toInt()
+    val snappedMinutes = (newMinutesFromStart / 5) * 5 // 对齐到5分钟
+
+    val newStartHour = startHour + (snappedMinutes / 60)
+    val newStartMinute = snappedMinutes % 60
+
+    return Triple(newDateIndex, newStartHour, newStartMinute)
+}
+
+// 解析任务时间信息
+private fun parseTaskTime(timeRange: String, fallbackDuration: Int): Quintuple<Int, Int, Int, Int, Int> {
+    try {
+        val parts = timeRange.split(" - ")
+        if (parts.size != 2) {
+            // 无法解析时间格式，返回默认值
+            return Quintuple(0, 0, 1, 0, fallbackDuration)
+        }
+
+        val startParts = parts[0].split(":")
+        val endParts = parts[1].split(":")
+
+        if (startParts.size != 2 || endParts.size != 2) {
+            // 无法解析小时和分钟，返回默认值
+            return Quintuple(0, 0, 1, 0, fallbackDuration)
+        }
+
+        val startHour = startParts[0].toInt()
+        val startMinute = startParts[1].toInt()
+        val endHour = endParts[0].toInt()
+        val endMinute = endParts[1].toInt()
+
+        // 计算真实持续时间（分钟）
+        val startTotalMinutes = startHour * 60 + startMinute
+        val endTotalMinutes = endHour * 60 + endMinute
+        val duration = endTotalMinutes - startTotalMinutes
+
+        // 如果计算出的持续时间无效，使用提供的备用值
+        val finalDuration = if (duration > 0) duration else fallbackDuration
+
+        return Quintuple(startHour, startMinute, endHour, endMinute, finalDuration)
+    } catch (e: Exception) {
+        // 出现异常，返回默认值
+        return Quintuple(0, 0, 1, 0, fallbackDuration)
+    }
+}
+
+// 5元组数据类，用于返回5个值
+data class Quintuple<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
+
+// 计算拖动后的日期索引
+private fun calculateDateIndex(currentX: Float, columnWidth: Float, maxColumns: Int): Int {
+    val relativeX = currentX - 40f // 减去左侧时间栏的宽度
+    return (relativeX / columnWidth).toInt().coerceIn(0, maxColumns - 1)
 }
 
 // 辅助函数
