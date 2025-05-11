@@ -106,8 +106,16 @@ class ProfileActivity : AppCompatActivity() {
 
             // 加载头像
             if (cachedUser.avatarURL.isNotEmpty()) {
+                val fullAvatarUrl = if (cachedUser.avatarURL.startsWith("http")) {
+                    cachedUser.avatarURL
+                } else {
+                    ApiClient.BASE_URL.removeSuffix("/") + cachedUser.avatarURL
+                }
+
+                Log.d(TAG, "加载缓存头像，完整URL: $fullAvatarUrl")
+
                 Glide.with(this)
-                    .load(cachedUser.avatarURL)
+                    .load(fullAvatarUrl)
                     .placeholder(R.drawable.default_avatar)
                     .error(R.drawable.default_avatar)
                     .into(profileImageView)
@@ -130,8 +138,16 @@ class ProfileActivity : AppCompatActivity() {
 
                         // 加载头像
                         if (user.avatarURL.isNotEmpty()) {
+                            val fullAvatarUrl = if (user.avatarURL.startsWith("http")) {
+                                user.avatarURL
+                            } else {
+                                ApiClient.BASE_URL.removeSuffix("/") + user.avatarURL
+                            }
+
+                            Log.d(TAG, "加载服务器头像，完整URL: $fullAvatarUrl")
+
                             Glide.with(this@ProfileActivity)
-                                .load(user.avatarURL)
+                                .load(fullAvatarUrl)
                                 .placeholder(R.drawable.default_avatar)
                                 .error(R.drawable.default_avatar)
                                 .into(profileImageView)
@@ -167,6 +183,9 @@ class ProfileActivity : AppCompatActivity() {
             return
         }
 
+        Log.d(TAG, "开始保存用户信息，用户ID: $userId")
+        Log.d(TAG, "昵称是否更改: $hasChangedNickname, 头像是否更改: $hasChangedImage")
+
         showLoading(true)
 
         lifecycleScope.launch {
@@ -174,15 +193,39 @@ class ProfileActivity : AppCompatActivity() {
                 // 如果更改了头像，先上传头像
                 var avatarUrl: String? = null
                 if (hasChangedImage && imageUri != null) {
+                    Log.d(TAG, "准备上传头像，图片URI: $imageUri")
+
+                    // 检查 URI 是否能读取到文件
+                    try {
+                        val inputStream = contentResolver.openInputStream(imageUri!!)
+                        Log.d(TAG, "成功打开图片文件流: ${inputStream != null}")
+                        inputStream?.close()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "无法打开图片文件流: ${e.message}", e)
+                    }
+
                     val multipartImage = ImageUtils.uriToMultipart(this@ProfileActivity, imageUri!!, "avatar")
                     if (multipartImage != null) {
-                        val response = ApiClient.userApiService.uploadAvatar(userId!!, multipartImage)
-                        if (response.isSuccessful) {
-                            avatarUrl = response.body()?.get("avatarURL")
-                        } else {
-                            Log.e(TAG, "Failed to upload avatar: ${response.errorBody()?.string()}")
-                            Toast.makeText(this@ProfileActivity, "上传头像失败", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "成功创建MultipartBody，开始上传头像")
+
+                        try {
+                            val response = ApiClient.userApiService.uploadAvatar(userId!!, multipartImage)
+                            Log.d(TAG, "上传头像API调用完成，响应码: ${response.code()}")
+
+                            if (response.isSuccessful) {
+                                avatarUrl = response.body()?.get("avatarURL")
+                                Log.d(TAG, "头像上传成功，返回的URL: $avatarUrl")
+                            } else {
+                                val errorBody = response.errorBody()?.string() ?: "Unknown error"
+                                Log.e(TAG, "头像上传失败，错误: $errorBody")
+                                Toast.makeText(this@ProfileActivity, "上传头像失败: $errorBody", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "头像上传异常: ${e.message}", e)
+                            e.printStackTrace()
                         }
+                    } else {
+                        Log.e(TAG, "创建MultipartBody失败，无法上传头像")
                     }
                 }
 
@@ -192,19 +235,33 @@ class ProfileActivity : AppCompatActivity() {
                     avatarURL = avatarUrl
                 )
 
-                val response = ApiClient.userApiService.updateUser(userId!!, updateRequest)
-                if (response.isSuccessful) {
-                    // 更新本地缓存
-                    response.body()?.let { UserManager.saveUserInfo(it) }
+                Log.d(TAG, "开始更新用户信息: $updateRequest")
 
-                    Toast.makeText(this@ProfileActivity, "保存成功", Toast.LENGTH_SHORT).show()
-                    finish()
-                } else {
-                    Log.e(TAG, "Failed to update user: ${response.errorBody()?.string()}")
-                    Toast.makeText(this@ProfileActivity, "更新用户信息失败", Toast.LENGTH_SHORT).show()
+                try {
+                    val response = ApiClient.userApiService.updateUser(userId!!, updateRequest)
+                    Log.d(TAG, "更新用户信息API调用完成，响应码: ${response.code()}")
+
+                    if (response.isSuccessful) {
+                        // 更新本地缓存
+                        response.body()?.let {
+                            UserManager.saveUserInfo(it)
+                            Log.d(TAG, "用户信息更新成功，新的头像URL: ${it.avatarURL}")
+                        }
+
+                        Toast.makeText(this@ProfileActivity, "保存成功", Toast.LENGTH_SHORT).show()
+                        finish()
+                    } else {
+                        val errorBody = response.errorBody()?.string() ?: "Unknown error"
+                        Log.e(TAG, "更新用户信息失败，错误: $errorBody")
+                        Toast.makeText(this@ProfileActivity, "更新用户信息失败: $errorBody", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "更新用户信息异常: ${e.message}", e)
+                    e.printStackTrace()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error saving user info: ${e.message}", e)
+                Log.e(TAG, "保存用户信息过程中出现异常: ${e.message}", e)
+                e.printStackTrace()
                 Toast.makeText(this@ProfileActivity, "网络错误，请稍后重试", Toast.LENGTH_SHORT).show()
             } finally {
                 showLoading(false)

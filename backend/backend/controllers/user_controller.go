@@ -2,11 +2,13 @@ package controllers
 
 import (
 	"encoding/binary"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
-	
+	"path/filepath" 
+	"fmt"
+	"os"
+
 	"github.com/Alchuang22-dev/backend/models"
 	"github.com/Alchuang22-dev/backend/repositories"
 	"github.com/Alchuang22-dev/backend/utils"
@@ -601,4 +603,108 @@ func (c *UserController) RefreshAccessToken(ctx *gin.Context) {
 			"expiresIn":    accessTokenDuration.Seconds(),
 		},
 	})
+}
+
+// 图片处理部分
+
+// 设置头像存储目录
+const avatarUploadDir = "./uploads/avatars"
+
+// UploadAvatar 上传用户头像
+func (c *UserController) UploadAvatar(ctx *gin.Context) {
+    id := ctx.Param("id")
+    objectID, err := primitive.ObjectIDFromHex(id)
+    if err != nil {
+        ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID格式"})
+        return
+    }
+    
+    user, err := c.userRepo.FindByID(objectID)
+    if err != nil {
+        ctx.JSON(http.StatusNotFound, gin.H{"error": "用户未找到"})
+        return
+    }
+    
+    // 获取表单文件
+    file, err := ctx.FormFile("avatar")
+    if err != nil {
+        ctx.JSON(http.StatusBadRequest, gin.H{"error": "获取上传文件失败"})
+        return
+    }
+    
+    // 保存文件
+    filename, err := utils.SaveUploadedFile(file, avatarUploadDir)
+    if err != nil {
+        ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    // 删除旧头像文件（如果存在）
+    if user.AvatarURL != "" {
+        // 从 URL 中提取文件名
+        oldFilename := filepath.Base(user.AvatarURL)
+        if err := utils.DeleteFile(oldFilename, avatarUploadDir); err != nil {
+            // 仅记录错误，不中断流程
+            fmt.Printf("删除旧头像文件失败: %s\n", err)
+        }
+    }
+    
+    // 构建头像 URL
+    avatarURL := fmt.Sprintf("/api/avatars/%s", filename)
+    
+    // 更新用户头像 URL
+    user.UpdateAvatarURL(avatarURL)
+    if err := c.userRepo.Update(user); err != nil {
+        ctx.JSON(http.StatusInternalServerError, gin.H{"error": "更新用户头像失败"})
+        return
+    }
+    
+    ctx.JSON(http.StatusOK, gin.H{
+        "message": "头像上传成功",
+        "avatarURL": avatarURL,
+    })
+}
+
+// ChangeAvatar 更改用户头像
+func (c *UserController) ChangeAvatar(ctx *gin.Context) {
+    // 由于更改头像与上传头像流程基本一致，我们可以直接复用 UploadAvatar 方法
+    c.UploadAvatar(ctx)
+}
+
+// GetAvatar 获取用户头像
+func (c *UserController) GetAvatar(ctx *gin.Context) {
+    id := ctx.Param("id")
+    objectID, err := primitive.ObjectIDFromHex(id)
+    if err != nil {
+        ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID格式"})
+        return
+    }
+    
+    user, err := c.userRepo.FindByID(objectID)
+    if err != nil {
+        ctx.JSON(http.StatusNotFound, gin.H{"error": "用户未找到"})
+        return
+    }
+    
+    if user.AvatarURL == "" {
+        ctx.JSON(http.StatusOK, gin.H{"avatarURL": ""})
+        return
+    }
+    
+    ctx.JSON(http.StatusOK, gin.H{"avatarURL": user.AvatarURL})
+}
+
+// ServeAvatar 提供头像文件
+func (c *UserController) ServeAvatar(ctx *gin.Context) {
+    filename := ctx.Param("filename")
+    filePath := filepath.Join(avatarUploadDir, filename)
+    
+    // 检查文件是否存在
+    if _, err := os.Stat(filePath); os.IsNotExist(err) {
+        ctx.JSON(http.StatusNotFound, gin.H{"error": "头像文件未找到"})
+        return
+    }
+    
+    // 提供文件
+    ctx.File(filePath)
 }

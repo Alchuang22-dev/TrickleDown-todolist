@@ -132,11 +132,11 @@ func (u *User) IsTokenExpired() bool {
 	return time.Now().After(u.TokenExpireDate)
 }
 
-// RefreshToken 刷新令牌
-func (u *User) RefreshToken(newToken string, newExpireDate time.Time, newRefreshToken string) {
-	u.Token = newToken
-	u.TokenExpireDate = newExpireDate
-	u.RefreshToken = newRefreshToken
+// RefreshUserToken 刷新用户的令牌
+func (u *User) RefreshUserToken(newToken string, newExpireDate time.Time, newRefreshToken string) {
+    u.Token = newToken
+    u.TokenExpireDate = newExpireDate
+    u.RefreshToken = newRefreshToken
 }
 
 // UpdateNickname 更新用户昵称

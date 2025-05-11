@@ -12,10 +12,10 @@ data class FocusDistributionResponse(
 )
 
 // 如果需要继续支持旧的数据结构，保留这些类
-data class FocusDistributionData(
-    val date: String,
-    val level: Int
-)
+//data class FocusDistributionData(
+//    val date: String,
+//    val level: Int
+//)
 
 data class MonthlyDistributionData(
     val day: Int,
