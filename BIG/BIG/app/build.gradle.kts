@@ -98,6 +98,8 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+
+    implementation(libs.coil.compose)
 }
 
 // 添加全局配置以强制使用Kotlin 2.1.0

@@ -65,6 +65,18 @@ import com.example.big.utils.UserManager
 // import com.google.android.gms.common.api.Result
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import coil.compose.AsyncImage
+import coil.compose.rememberAsyncImagePainter
+import com.example.big.api.ApiClient
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent   // success 时需要
 
 class MainActivity : ComponentActivity() {
     // 在活动级别存储任务状态
@@ -279,6 +291,25 @@ fun App(
 
 @Composable
 fun HeaderSection(onProfileClick: () -> Unit) {
+    val context = LocalContext.current
+
+    // 获取当前用户信息
+    val user = remember { UserManager.getUserInfo() }
+
+    // 处理头像URL
+    val avatarUrl = remember(user) {
+        if (user?.avatarURL?.isNotEmpty() == true) {
+            // 如果是相对路径，添加基础URL前缀
+            if (user.avatarURL.startsWith("http")) {
+                user.avatarURL
+            } else {
+                ApiClient.BASE_URL.removeSuffix("/") + user.avatarURL
+            }
+        } else {
+            null
+        }
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -291,14 +322,17 @@ fun HeaderSection(onProfileClick: () -> Unit) {
             color = Color(0xFF333333)
         )
 
-        Image(
-            painter = painterResource(id = R.drawable.default_avatar),
-            contentDescription = "个人头像",
+        AsyncImage(
+            model = avatarUrl,
+            contentDescription = "用户头像",
             modifier = Modifier
                 .size(50.dp)
                 .clip(CircleShape)
                 .border(2.dp, Color.White, CircleShape)
-                .clickable(onClick = onProfileClick)
+                .clickable { onProfileClick() },
+            contentScale = ContentScale.Crop,
+            error    = painterResource(R.drawable.default_avatar),
+            fallback = painterResource(R.drawable.default_avatar)
         )
     }
 }

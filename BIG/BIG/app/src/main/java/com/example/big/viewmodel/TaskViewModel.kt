@@ -21,7 +21,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     val tasks: LiveData<List<TaskResponse>> = _tasks
 
     private val _loading = MutableLiveData<Boolean>()
-    val loading: LiveData<Boolean> = _loading
+//    val loading: LiveData<Boolean> = _loading
 
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> = _error

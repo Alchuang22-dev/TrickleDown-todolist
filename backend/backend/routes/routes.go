@@ -59,7 +59,15 @@ func SetupUserRoutes(router *gin.Engine, db *mongo.Database) {
             
             // 登出
             users.POST("/:id/logout", userController.Logout)
+
+            // 添加头像相关路由
+            users.POST("/:id/avatar", userController.UploadAvatar)
+            users.PUT("/:id/avatar", userController.ChangeAvatar)
+            users.GET("/:id/avatar", userController.GetAvatar)
         }
+
+         // 添加静态文件服务路由（用于访问头像文件）
+        router.GET("/api/avatars/:filename", userController.ServeAvatar)
     }
 }
 
@@ -79,4 +87,5 @@ func SetupRoutes(router *gin.Engine, db *mongo.Database) {
             c.String(http.StatusOK, "healthy")
         }
     })
+
 }
