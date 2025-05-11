@@ -35,11 +35,13 @@ data class UserResponse(
     val nickname: String,
     val email: String,
     val phoneNumber: String,
-    val avatarURL: String, // 确保这个字段存在且类型为 String
+    val avatarURL: String = "", // 头像URL
     val status: String,
     val createdDate: String,
     val lastLoginDate: String
 )
+
+// UpdateUserRequest.kt
 
 data class UpdateUserRequest(
     val nickname: String? = null,

@@ -10,7 +10,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
-    private const val BASE_URL = "https://todo.dechelper.com/"
+    const val BASE_URL = "https://todo.dechelper.com/"
 
     private val authInterceptor = Interceptor { chain ->
         val originalRequest = chain.request()
