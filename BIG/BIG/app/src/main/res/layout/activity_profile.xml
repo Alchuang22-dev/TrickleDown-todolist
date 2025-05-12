@@ -37,28 +37,44 @@
         android:layout_marginTop="8dp"
         tools:ignore="HardcodedText" />
 
-    <EditText
-        android:id="@+id/nickname_text"
+    <!-- 将昵称部分改为LinearLayout包含EditText -->
+    <LinearLayout
+        android:id="@+id/nickname_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
-        android:background="@android:color/transparent"
-        android:enabled="false"
-        android:text="用户"
-        android:textAlignment="center"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:hint="请输入昵称"
-        tools:ignore="Autofill,HardcodedText,LabelFor,TextFields,TouchTargetSizeCheck,VisualLintTextFieldSize" />
+        android:orientation="vertical"
+        android:gravity="center"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="?attr/selectableItemBackground">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="点击昵称可修改"
-        android:textSize="14sp"
-        android:textColor="#666666"
-        android:layout_marginTop="8dp"
-        tools:ignore="HardcodedText" />
+        <EditText
+            android:id="@+id/nickname_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@android:color/transparent"
+            android:enabled="false"
+            android:text="用户"
+            android:textAlignment="center"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:hint="请输入昵称"
+            android:inputType="text"
+            android:maxLines="1"
+            android:maxLength="20"
+            tools:ignore="Autofill,HardcodedText,LabelFor,TextFields,TouchTargetSizeCheck,VisualLintTextFieldSize" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="点击昵称可修改"
+            android:textSize="14sp"
+            android:textColor="#666666"
+            android:layout_marginTop="8dp"
+            tools:ignore="HardcodedText" />
+
+    </LinearLayout>
 
     <FrameLayout
         android:layout_width="match_parent"
