@@ -47,6 +47,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -116,11 +117,38 @@ fun KanbanScreen(coroutineScope: kotlinx.coroutines.CoroutineScope) {
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    // 新增：添加页面刷新状态
+    var refreshTrigger by remember { mutableStateOf(0) }
+
+    // 新增：记录滚动位置
+    val scrollState = rememberScrollState()
+    var savedScrollPosition by remember { mutableStateOf(0) }
+    var shouldRestoreScroll by remember { mutableStateOf(false) }
+
     var currentDate by remember { mutableStateOf(Calendar.getInstance()) }
     val scope = rememberCoroutineScope()
 
-    // 从API加载任务数据
-    LaunchedEffect(key1 = true) {
+    // 新增：刷新函数，保存当前滚动位置
+    fun refreshKanbanView() {
+        Log.d(DEBUG_TAG, "触发看板视图刷新")
+        savedScrollPosition = scrollState.value
+        shouldRestoreScroll = true
+        isLoading = true
+        refreshTrigger += 1
+    }
+
+    // 恢复滚动位置的效果
+    LaunchedEffect(shouldRestoreScroll, isLoading) {
+        if (shouldRestoreScroll && !isLoading) {
+            // 数据加载完成后，恢复滚动位置
+            scrollState.scrollTo(savedScrollPosition)
+            shouldRestoreScroll = false
+            Log.d(DEBUG_TAG, "恢复滚动位置: $savedScrollPosition")
+        }
+    }
+
+    // 从API加载任务数据，添加refreshTrigger作为Key
+    LaunchedEffect(key1 = true, key2 = refreshTrigger) {
         loadTasksFromApi(coroutineScope) { result ->
             when (result) {
                 is TaskLoadResult.Success -> {
@@ -212,8 +240,13 @@ fun KanbanScreen(coroutineScope: kotlinx.coroutines.CoroutineScope) {
                     }
                 }
                 else -> {
-                    // 修改：使用多日视图时间线
-                    MultiDayTimelineView(visibleDates, tasks)
+                    // 修改：传递滚动状态和刷新函数
+                    MultiDayTimelineView(
+                        visibleDates = visibleDates,
+                        tasks = tasks,
+                        scrollState = scrollState,
+                        onRefreshNeeded = { refreshKanbanView() }
+                    )
                 }
             }
         }
@@ -228,18 +261,7 @@ fun KanbanScreen(coroutineScope: kotlinx.coroutines.CoroutineScope) {
                         modifier = Modifier.clickable {
                             errorMessage = null
                             isLoading = true
-                            loadTasksFromApi(coroutineScope) { result ->
-                                when (result) {
-                                    is TaskLoadResult.Success -> {
-                                        tasks = result.tasks
-                                        isLoading = false
-                                    }
-                                    is TaskLoadResult.Error -> {
-                                        errorMessage = result.message
-                                        isLoading = false
-                                    }
-                                }
-                            }
+                            refreshKanbanView()
                         }
                     )
                 }
@@ -562,7 +584,8 @@ private fun updateTaskTime(
     originalTasksList: List<Task>,
     onTasksUpdated: (List<Task>) -> Unit,
     onUpdateMessage: (String?) -> Unit,
-    onIsUpdating: (Boolean) -> Unit
+    onIsUpdating: (Boolean) -> Unit,
+    onRefreshNeeded: () -> Unit  // 刷新回调
 ) = coroutineScope.launch {
     val logTag = "UpdateTaskTime"
 
@@ -705,11 +728,9 @@ private fun updateTaskTime(
                     Log.d(logTag, "服务器更新成功")
                     onUpdateMessage("任务已更新")
 
-                    // 刷新任务列表
-                    val refreshedTasks = getLatestTasksFromServer()
-                    if (refreshedTasks != null) {
-                        onTasksUpdated(refreshedTasks)
-                    }
+                    // 修改：触发页面刷新
+                    delay(500) // 给一点延迟让后端处理
+                    onRefreshNeeded()
                 }
                 is TaskManager.Result.Error -> {
                     Log.e(logTag, "服务器更新失败: ${result.message}")
@@ -799,10 +820,14 @@ private fun parseTimeRange(timeRange: String): TimeParseResult {
 }
 
 @Composable
-fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
+fun MultiDayTimelineView(
+    visibleDates: List<Calendar>,
+    tasks: List<Task>,
+    scrollState: androidx.compose.foundation.ScrollState, // 传入滚动状态
+    onRefreshNeeded: () -> Unit
+) {
     val startHour = 0
     val endHour = 23
-    val scrollState = rememberScrollState()
     val fiveMinHeightDp = 6.dp
     val hourHeightDp = fiveMinHeightDp * 12
     val context = LocalContext.current
@@ -810,15 +835,15 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
     val logTag = "MultiDayTimeline"
 
     // 当allTasks更新时，重置tasks状态 - 确保视图始终使用最新数据
-    var tasks by remember { mutableStateOf(allTasks) }
+    var tasks by remember { mutableStateOf(tasks) }
     var updateMessage by remember { mutableStateOf<String?>(null) }
     var isUpdating by remember { mutableStateOf(false) }
 
     // 当外部任务列表变化时更新本地状态
-    LaunchedEffect(allTasks) {
-        if (allTasks != tasks) {
+    LaunchedEffect(tasks) {
+        if (tasks != tasks) {
             Log.d(logTag, "检测到任务列表变化，更新本地状态")
-            tasks = allTasks
+            tasks = tasks
         }
     }
 
@@ -827,7 +852,7 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
 
     // 每次任务列表变化时，重新计算分组
     val noTimeTasksByDate = remember(tasks) {
-        dates.associateWith { date ->
+        visibleDates.associateWith { date ->
             tasks.filter { task ->
                 isSameDay(task.date, date.time) &&
                         (task.timeRange == "未设定时间" || task.durationMinutes == 0)
@@ -836,7 +861,7 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
     }
 
     val timeTasksByDate = remember(tasks) {
-        dates.associateWith { date ->
+        visibleDates.associateWith { date ->
             tasks.filter { task ->
                 isSameDay(task.date, date.time) &&
                         task.timeRange != "未设定时间" &&
@@ -845,7 +870,7 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
         }
     }
 
-    // 修改为使用新的封装函数处理任务更新
+    // 修改：添加刷新回调到任务更新函数
     val updateTaskTimeWrapper: (Task, Calendar, Int, Int) -> Unit = { task, newDate, newStartMinutes, newEndMinutes ->
         updateTaskTime(
             task = task,
@@ -867,7 +892,8 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
             onIsUpdating = { updating ->
                 Log.d(logTag, "更新状态: $updating")
                 isUpdating = updating
-            }
+            },
+            onRefreshNeeded = onRefreshNeeded
         )
     }
 
@@ -877,12 +903,12 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
+                .verticalScroll(scrollState) // 使用外部传入的滚动状态
         ) {
             // 无时间任务区域 - 确保始终显示，哪怕没有任务也显示标题
             NoTimeTasksSection(
                 tasksByDate = noTimeTasksByDate,
-                dates = dates,
+                dates = visibleDates,
                 onTaskMoved = updateTaskTimeWrapper
             )
 
@@ -927,8 +953,8 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
                 }
 
                 // 垂直分隔线（日期列分隔）
-                for (i in 0..dates.size) {
-                    val columnWidth = (LocalConfiguration.current.screenWidthDp - 40) / dates.size
+                for (i in 0..visibleDates.size) {
+                    val columnWidth = (LocalConfiguration.current.screenWidthDp - 40) / visibleDates.size
                     val xPosition = if (i == 0) 40.dp else 40.dp + (i * columnWidth).dp
 
                     Box(
@@ -941,7 +967,7 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
                 }
 
                 // 在一个Box中放置所有任务，启用绝对定位
-                dates.forEachIndexed { dateIndex, date ->
+                visibleDates.forEachIndexed { dateIndex, date ->
                     val dateTasks = timeTasksByDate[date] ?: emptyList()
 
                     dateTasks.forEach { task ->
@@ -972,7 +998,7 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
                             val taskHeight = max(heightInDp, 50f).dp
 
                             // 计算水平位置
-                            val columnWidth = (LocalConfiguration.current.screenWidthDp - 40) / dates.size
+                            val columnWidth = (LocalConfiguration.current.screenWidthDp - 40) / visibleDates.size
                             val leftPosition = 40.dp + (dateIndex * columnWidth).dp
                             val taskWidth = columnWidth.dp - 8.dp
 
@@ -985,7 +1011,7 @@ fun MultiDayTimelineView(dates: List<Calendar>, allTasks: List<Task>) {
                                     .offset(x = leftPosition + 4.dp, y = topOffsetDp.dp)
                                     .zIndex(1f),
                                 onTaskMoved = updateTaskTimeWrapper,
-                                visibleDates = dates,
+                                visibleDates = visibleDates,
                                 dateIndex = dateIndex,
                                 startHour = startHour,
                                 hourHeightDp = hourHeightDp
@@ -1434,11 +1460,11 @@ fun DraggableTaskCard(
                     }
                 )
             }
-        .clickable(enabled = !isDragging) {
-            val intent = Intent(context, EditTaskActivity::class.java)
-            intent.putExtra("task_id", task.id)
-            context.startActivity(intent)
-        },
+            .clickable(enabled = !isDragging) {
+                val intent = Intent(context, EditTaskActivity::class.java)
+                intent.putExtra("task_id", task.id)
+                context.startActivity(intent)
+            },
         colors = CardDefaults.cardColors(
             containerColor = if (task.isImportant)
                 if (isDragging) Color(0xFFBBE0BB) else Color(0xFFE8F5E9)
@@ -1663,7 +1689,6 @@ private fun calculateDateIndex(currentX: Float, columnWidth: Float, maxColumns: 
     return (relativeX / columnWidth).toInt().coerceIn(0, maxColumns - 1)
 }
 
-// 辅助函数
 // 辅助函数
 fun isSameDay(date1: Date?, date2: Date?): Boolean {
     if (date1 == null || date2 == null) return false
