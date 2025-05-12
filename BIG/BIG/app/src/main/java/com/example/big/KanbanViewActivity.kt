@@ -82,6 +82,9 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 
 class KanbanViewActivityCompose : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1239,6 +1242,9 @@ fun DraggableTaskCard(
     val minHeight = 50.dp
     val logTag = "DraggableTask"
 
+    // 添加协程作用域
+    val coroutineScope = rememberCoroutineScope()
+
     // 任务卡片高度
     val actualHeight = if (heightDp.value < minHeight.value) minHeight else heightDp
     val isMinHeight = actualHeight.value <= 60f
@@ -1259,9 +1265,14 @@ fun DraggableTaskCard(
     var calculatedStartMinutes by remember { mutableStateOf(0) }
     var calculatedEndMinutes by remember { mutableStateOf(0) }
 
-    // 新增：控制卡片更新和位置状态
+    // 控制卡片更新和位置状态
     var isUpdating by remember { mutableStateOf(false) }
     var keepPosition by remember { mutableStateOf(false) }
+
+    // 新增：添加动画状态
+    val animatedOffsetX = remember { androidx.compose.animation.core.Animatable(0f) }
+    val animatedOffsetY = remember { androidx.compose.animation.core.Animatable(0f) }
+    var isAnimating by remember { mutableStateOf(false) }
 
     // 解析任务初始时间以便后续计算
     val timeInfo = parseTaskTime(task.timeRange, task.durationMinutes)
@@ -1271,14 +1282,31 @@ fun DraggableTaskCard(
 
     // 初始化或任务变化时重置状态
     LaunchedEffect(task.id, task.timeRange) {
-        // 如果正在更新或需要保持位置，不重置位置偏移
-        if (!isUpdating && !keepPosition) {
+        if (!isUpdating && !keepPosition && !isAnimating) {
+            // 重置偏移量
             offsetX = 0f
             offsetY = 0f
+            animatedOffsetX.snapTo(0f)
+            animatedOffsetY.snapTo(0f)
         }
 
         // 始终重置其他状态
         isDragging = false
+        previewTimeRange = null
+        previewDate = null
+        hasMoved = false
+    }
+
+    // 重置卡片的函数
+    fun resetCard() {
+        if (!keepPosition && !isAnimating) {
+            offsetX = 0f
+            offsetY = 0f
+            coroutineScope.launch {
+                animatedOffsetX.snapTo(0f)
+                animatedOffsetY.snapTo(0f)
+            }
+        }
         previewTimeRange = null
         previewDate = null
         hasMoved = false
@@ -1297,24 +1325,19 @@ fun DraggableTaskCard(
     // 计算允许的拖动范围
     val maxDragLeft = -(dateIndex * columnWidth)
     val maxDragRight = ((visibleDates.size - dateIndex - 1) * columnWidth)
-    fun resetCard() {
-        if (!keepPosition) {
-            offsetX = 0f
-            offsetY = 0f
-        }
-        previewTimeRange = null
-        previewDate = null
-        hasMoved = false
-    }
+
+    // 使用动画值作为实际偏移
+    val displayOffsetX = if (isAnimating) animatedOffsetX.value else offsetX
+    val displayOffsetY = if (isAnimating) animatedOffsetY.value else offsetY
 
     Card(
         modifier = modifier
             .height(actualHeight)
-            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+            .offset { IntOffset(displayOffsetX.roundToInt(), displayOffsetY.roundToInt()) }
             .pointerInput(uniqueCardKey) {
                 detectDragGestures(
                     onDragStart = {
-                        if (isUpdating) return@detectDragGestures
+                        if (isUpdating || isAnimating) return@detectDragGestures
 
                         lastTapTime = System.currentTimeMillis()
                         hasMoved = false
@@ -1361,31 +1384,63 @@ fun DraggableTaskCard(
                             Log.d(logTag, "新日期: ${SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(previewDate!!.time)}")
                             Log.d(logTag, "新时间: $previewTimeRange (分钟: $calculatedStartMinutes-$calculatedEndMinutes)")
 
-                            // 保存位置信息
-                            keepPosition = true
-                            isUpdating = true
+                            // 设置当前偏移值作为动画起点
+                            coroutineScope.launch {
+                                animatedOffsetX.snapTo(offsetX)
+                                animatedOffsetY.snapTo(offsetY)
+                            }
+
+                            isAnimating = true
                             isDragging = false
 
-                            // 使用保存的坐标延续视觉效果
+                            // 保存最终位置数据
                             val finalDate = previewDate!!
                             val finalStartMinutes = calculatedStartMinutes
                             val finalEndMinutes = calculatedEndMinutes
 
-                            // 部分状态重置
-                            previewTimeRange = null
-                            previewDate = null
-                            hasMoved = false
+                            // 启动协程进行更新和动画
+                            coroutineScope.launch {
+                                // 动画平滑过渡到0位置 - 表示回到正确的位置
+                                launch {
+                                    animatedOffsetX.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = tween(
+                                            durationMillis = 300,
+                                            easing = FastOutSlowInEasing
+                                        )
+                                    )
+                                    animatedOffsetY.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = tween(
+                                            durationMillis = 300,
+                                            easing = FastOutSlowInEasing
+                                        )
+                                    )
 
-                            // 调用更新回调
-                            onTaskMoved?.invoke(
-                                task,
-                                finalDate,
-                                finalStartMinutes,
-                                finalEndMinutes
-                            )
+                                    // 动画完成后清理状态
+                                    isAnimating = false
+                                    offsetX = 0f
+                                    offsetY = 0f
+                                }
 
-                            // 任务更新完成后的清理
-                            isUpdating = false
+                                // 同时进行任务更新
+                                isUpdating = true
+
+                                // 部分状态重置
+                                previewTimeRange = null
+                                previewDate = null
+                                hasMoved = false
+
+                                // 调用更新回调
+                                onTaskMoved?.invoke(
+                                    task,
+                                    finalDate,
+                                    finalStartMinutes,
+                                    finalEndMinutes
+                                )
+
+                                isUpdating = false
+                            }
                         } else {
                             // 无效拖动，重置卡片
                             Log.d(logTag, "无效拖动，重置卡片")
@@ -1460,7 +1515,7 @@ fun DraggableTaskCard(
                     }
                 )
             }
-            .clickable(enabled = !isDragging) {
+            .clickable(enabled = !isDragging && !isAnimating) {
                 val intent = Intent(context, EditTaskActivity::class.java)
                 intent.putExtra("task_id", task.id)
                 context.startActivity(intent)
@@ -1559,10 +1614,19 @@ fun DraggableTaskCard(
                         .background(Color.Red, CircleShape)
                 )
             }
+
+            // 动画状态指示器
+            if (isAnimating) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(8.dp)
+                        .background(Color.Blue, CircleShape)
+                )
+            }
         }
     }
-
-    // 辅助函数：重置卡片状态
 }
 
 // 简化计算新日期索引的逻辑

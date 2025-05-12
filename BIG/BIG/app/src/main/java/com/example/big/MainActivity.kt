@@ -3,6 +3,7 @@ package com.example.big
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -77,6 +78,19 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.big.api.ApiClient
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent   // success 时需要
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import coil.request.ImageRequest
 
 class MainActivity : ComponentActivity() {
     // 在活动级别存储任务状态
@@ -173,8 +187,8 @@ class MainActivity : ComponentActivity() {
             val userId = UserManager.getUserId() ?: return importantTasks
 
             // 获取今天的日期，格式化为API需要的格式 (yyyy-MM-dd)
-            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-            val todayDate = dateFormat.format(java.util.Date())
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val todayDate = dateFormat.format(Date())
 
             // 调用API获取今日任务
             val response = TaskManager.getTasksByDate(userId, todayDate)
@@ -220,17 +234,17 @@ class MainActivity : ComponentActivity() {
                         hours * 60 + minutes  // 转换为分钟数用于排序
                     } catch (e: Exception) {
                         // 错误处理
-                        android.util.Log.e("MainActivity", "解析任务时间失败: ${e.message} for timeRange: ${task.timeRange}", e)
+                        Log.e("MainActivity", "解析任务时间失败: ${e.message} for timeRange: ${task.timeRange}", e)
                         Int.MAX_VALUE  // 排在最后
                     }
                 }
             } else if (response is TaskManager.Result.Error) {
                 // 记录错误日志
-                android.util.Log.e("MainActivity", "获取今日重要任务失败: ${response.message}")
+                Log.e("MainActivity", "获取今日重要任务失败: ${response.message}")
             }
         } catch (e: Exception) {
             // 错误处理
-            android.util.Log.e("MainActivity", "获取今日重要任务时出现异常", e)
+            Log.e("MainActivity", "获取今日重要任务时出现异常", e)
         }
 
         return importantTasks
@@ -293,11 +307,29 @@ fun App(
 fun HeaderSection(onProfileClick: () -> Unit) {
     val context = LocalContext.current
 
-    // 获取当前用户信息
-    val user = remember { UserManager.getUserInfo() }
+    // 创建一个可观察的状态，用于触发头像重新加载
+    val refreshTrigger = remember { mutableStateOf(0) }
 
-    // 处理头像URL
-    val avatarUrl = remember(user) {
+    // 添加一个订阅，当onResume时更新refreshTrigger
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                // 增加计数器触发重新加载
+                refreshTrigger.value += 1
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // 每次refreshTrigger变化时获取最新的用户信息
+    val user = remember(refreshTrigger.value) { UserManager.getUserInfo() }
+
+    // 处理头像URL - 添加refreshTrigger作为依赖，确保刷新
+    val avatarUrl = remember(refreshTrigger.value, user) {
         if (user?.avatarURL?.isNotEmpty() == true) {
             // 如果是相对路径，添加基础URL前缀
             if (user.avatarURL.startsWith("http")) {
@@ -322,8 +354,12 @@ fun HeaderSection(onProfileClick: () -> Unit) {
             color = Color(0xFF333333)
         )
 
+        // 添加cacheKey参数强制刷新图片
         AsyncImage(
-            model = avatarUrl,
+            model = ImageRequest.Builder(context)
+                .data(avatarUrl)
+                .diskCacheKey("avatar_${refreshTrigger.value}")
+                .build(),
             contentDescription = "用户头像",
             modifier = Modifier
                 .size(50.dp)
@@ -331,7 +367,7 @@ fun HeaderSection(onProfileClick: () -> Unit) {
                 .border(2.dp, Color.White, CircleShape)
                 .clickable { onProfileClick() },
             contentScale = ContentScale.Crop,
-            error    = painterResource(R.drawable.default_avatar),
+            error = painterResource(R.drawable.default_avatar),
             fallback = painterResource(R.drawable.default_avatar)
         )
     }
