@@ -25,10 +25,12 @@ class ProfileActivity : AppCompatActivity() {
     private lateinit var nicknameTextView: EditText
     private lateinit var saveButton: Button
     private lateinit var loadingProgressBar: ProgressBar
+    private lateinit var nicknameLayout: View  // 添加昵称布局
 
     private var imageUri: Uri? = null
     private var userId: String? = null
     private var hasChangedImage = false
+    private var hasChangedNickname = false  // 添加昵称是否更改标志
     private var originalNickname = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,6 +42,7 @@ class ProfileActivity : AppCompatActivity() {
         nicknameTextView = findViewById(R.id.nickname_text)
         saveButton = findViewById(R.id.save_button)
         loadingProgressBar = findViewById(R.id.loading_progress)
+        nicknameLayout = findViewById(R.id.nickname_layout)  // 假设您有一个包含昵称EditText的布局
 
         // 获取当前用户ID
         userId = TokenManager.getUserId()
@@ -63,6 +66,10 @@ class ProfileActivity : AppCompatActivity() {
         // 设置点击事件
         profileImageView.setOnClickListener { openGallery() }
 
+        // 设置昵称点击事件
+        nicknameLayout.setOnClickListener {
+            showEditNicknameDialog()
+        }
         nicknameTextView.setOnClickListener {
             showEditNicknameDialog()
         }
@@ -175,7 +182,7 @@ class ProfileActivity : AppCompatActivity() {
         val currentNickname = nicknameTextView.text.toString().trim()
 
         // 检查是否有更改
-        val hasChangedNickname = currentNickname != originalNickname
+        hasChangedNickname = currentNickname != originalNickname
 
         if (!hasChangedNickname && !hasChangedImage) {
             Toast.makeText(this, "未做任何修改", Toast.LENGTH_SHORT).show()
@@ -246,6 +253,12 @@ class ProfileActivity : AppCompatActivity() {
                         response.body()?.let {
                             UserManager.saveUserInfo(it)
                             Log.d(TAG, "用户信息更新成功，新的头像URL: ${it.avatarURL}")
+
+                            // 清除Glide缓存，确保下次加载时获取最新图片
+                            Glide.get(this@ProfileActivity).clearMemory()
+                            Thread {
+                                Glide.get(this@ProfileActivity).clearDiskCache()
+                            }.start()
                         }
 
                         Toast.makeText(this@ProfileActivity, "保存成功", Toast.LENGTH_SHORT).show()
@@ -273,18 +286,51 @@ class ProfileActivity : AppCompatActivity() {
         val editText = EditText(this)
         editText.inputType = InputType.TYPE_CLASS_TEXT
         editText.setText(nicknameTextView.text)
+        editText.setSelection(editText.text.length)  // 将光标放在文本末尾
 
-        AlertDialog.Builder(this)
+        val dialogView = LinearLayout(this)
+        dialogView.orientation = LinearLayout.VERTICAL
+        dialogView.setPadding(50, 30, 50, 0)
+        dialogView.addView(editText)
+
+        val dialog = AlertDialog.Builder(this)
             .setTitle("修改昵称")
-            .setView(editText)
-            .setPositiveButton("确定") { _, _ ->
+            .setView(dialogView)
+            .setPositiveButton("确定", null)  // 先设为null，后面手动处理点击事件
+            .setNegativeButton("取消", null)
+            .create()
+
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            positiveButton.setOnClickListener {
                 val newNickname = editText.text.toString().trim()
-                if (newNickname.isNotEmpty()) {
-                    nicknameTextView.setText(newNickname)
+
+                // 添加昵称验证逻辑
+                when {
+                    newNickname.isEmpty() -> {
+                        Toast.makeText(this, "昵称不能为空", Toast.LENGTH_SHORT).show()
+                    }
+                    newNickname.length > 20 -> {
+                        Toast.makeText(this, "昵称不能超过20个字符", Toast.LENGTH_SHORT).show()
+                    }
+                    newNickname == originalNickname -> {
+                        // 无变化，直接关闭对话框
+                        dialog.dismiss()
+                    }
+                    else -> {
+                        // 设置新昵称并标记为已更改
+                        nicknameTextView.setText(newNickname)
+                        hasChangedNickname = true
+                        dialog.dismiss()
+
+                        // 给用户一个反馈
+                        Toast.makeText(this, "昵称已更改，点击保存按钮生效", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
-            .setNegativeButton("取消", null)
-            .show()
+        }
+
+        dialog.show()
     }
 
     private fun showLoading(isLoading: Boolean) {
