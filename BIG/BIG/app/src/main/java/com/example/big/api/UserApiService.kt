@@ -1,6 +1,9 @@
 // UserApiService.kt
 package com.example.big.api
 
+import com.example.big.models.AISuggestionRequest
+import com.example.big.models.AISuggestionResponse
+import com.example.big.models.UpdateApiKeyRequest
 import com.example.big.models.UpdateUserRequest
 import com.example.big.models.UserResponse
 import okhttp3.MultipartBody
@@ -26,4 +29,15 @@ interface UserApiService {
 
     @POST("api/logout")
     suspend fun logout(): Response<Map<String, String>>
+
+    @PUT("api/users/{id}/apikey")
+    suspend fun updateApiKey(
+        @Path("id") userId: String,
+        @Body updateRequest: UpdateApiKeyRequest
+    ): Response<Map<String, String>>
+
+    @POST("api/ai/suggestion")
+    suspend fun getAISuggestion(
+        @Body request: AISuggestionRequest
+    ): Response<AISuggestionResponse>
 }

@@ -38,7 +38,8 @@ data class UserResponse(
     val avatarURL: String = "", // 头像URL
     val status: String,
     val createdDate: String,
-    val lastLoginDate: String
+    val lastLoginDate: String,
+    val apiKey: String = "" // API密钥
 )
 
 // UpdateUserRequest.kt
@@ -48,4 +49,20 @@ data class UpdateUserRequest(
     val email: String? = null,
     val phoneNumber: String? = null,
     val avatarURL: String? = null
+)
+
+// 更新API密钥请求模型
+data class UpdateApiKeyRequest(
+    val api_key: String
+)
+
+// AI建议请求模型
+data class AISuggestionRequest(
+    val task_id: String,
+    val detailed_prompts: String? = null
+)
+
+// AI建议响应模型
+data class AISuggestionResponse(
+    val suggestion: String
 )

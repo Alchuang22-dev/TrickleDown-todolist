@@ -27,11 +27,11 @@ func SetupUserRoutes(router *gin.Engine, db *mongo.Database) {
     
     // 需要认证的API
     authorized := router.Group("/api")
-	{
-		authorized.GET("/auth/check", userController.CheckAuth)
-	}
+    {
+        authorized.GET("/auth/check", userController.CheckAuth)
+    }
     authorized.Use(middlewares.AuthMiddleware())
-	
+    
     // 添加Token自动刷新中间件
     authorized.Use(middlewares.TokenRefreshMiddleware(userRepo))
     {
@@ -64,20 +64,63 @@ func SetupUserRoutes(router *gin.Engine, db *mongo.Database) {
             users.POST("/:id/avatar", userController.UploadAvatar)
             users.PUT("/:id/avatar", userController.ChangeAvatar)
             users.GET("/:id/avatar", userController.GetAvatar)
+            
+            // 添加 API 密钥相关路由
+            users.PUT("/:id/apikey", userController.UpdateAPIKey)
         }
 
-         // 添加静态文件服务路由（用于访问头像文件）
+        // 添加静态文件服务路由（用于访问头像文件）
         router.GET("/api/avatars/:filename", userController.ServeAvatar)
     }
 }
 
 // 添加 SetupRoutes 函数来设置所有路由
+// func SetupRoutes(router *gin.Engine, db *mongo.Database) {
+//     // 设置用户路由
+//     SetupUserRoutes(router, db)
+    
+//     // 设置任务路由
+//     SetupTaskRoutes(router, db)
+    
+//     // 健康检查路由
+//     router.Any("/health", func(c *gin.Context) {
+//         if c.Request.Method == "HEAD" {
+//             c.Status(http.StatusOK)
+//         } else {
+//             c.String(http.StatusOK, "healthy")
+//         }
+//     })
+
+// }
+
+// 添加 AI 路由配置函数
+func SetupAIRoutes(router *gin.Engine, db *mongo.Database) {
+    userRepo := repositories.NewUserRepository(db)
+    taskRepo := repositories.NewTaskRepository(db)
+    aiController := controllers.NewAIController(userRepo, taskRepo)
+    
+    // 需要认证的API
+    authorized := router.Group("/api")
+    authorized.Use(middlewares.AuthMiddleware())
+    
+    // AI 相关路由
+    ai := authorized.Group("/ai")
+    {
+        // 获取 AI 建议
+        ai.POST("/suggestion", aiController.GetAISuggestion)
+    }
+}
+
+// 在 SetupRoutes 函数中添加 AI 路由配置
 func SetupRoutes(router *gin.Engine, db *mongo.Database) {
     // 设置用户路由
     SetupUserRoutes(router, db)
     
     // 设置任务路由
     SetupTaskRoutes(router, db)
+    
+    // 设置 AI 路由
+    SetupAIRoutes(router, db)
     
     // 健康检查路由
     router.Any("/health", func(c *gin.Context) {
@@ -87,5 +130,4 @@ func SetupRoutes(router *gin.Engine, db *mongo.Database) {
             c.String(http.StatusOK, "healthy")
         }
     })
-
 }
