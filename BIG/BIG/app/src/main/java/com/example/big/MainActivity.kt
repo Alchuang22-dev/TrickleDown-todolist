@@ -70,6 +70,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material3.IconButton
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -564,6 +566,7 @@ fun TaskItem(
 ) {
     // 为完成的任务设置浅绿色背景
     val backgroundColor = if (task.isFinished) Color(0xFFE8F5E9) else Color.Transparent
+    val context = LocalContext.current
 
     Row(
         modifier = Modifier
@@ -607,6 +610,22 @@ fun TaskItem(
                     color = Color.Gray
                 )
             }
+        }
+
+        // 添加 AI 聊天按钮
+        IconButton(
+            onClick = {
+                val intent = Intent(context, AIChatActivity::class.java).apply {
+                    putExtra("task_id", task.id)
+                }
+                context.startActivity(intent)
+            }
+        ) {
+            Icon(
+                imageVector = Icons.Default.Chat,  // 使用聊天图标
+                contentDescription = "AI对话",
+                tint = Color(0xFF2196F3)  // 蓝色
+            )
         }
 
         Icon(

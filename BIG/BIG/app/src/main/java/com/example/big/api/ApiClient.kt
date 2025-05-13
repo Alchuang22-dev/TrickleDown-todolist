@@ -45,4 +45,5 @@ object ApiClient {
         .build()
 
     val userApiService: UserApiService = retrofit.create(UserApiService::class.java)
+    val taskApiService: TaskApiService = retrofit.create(TaskApiService::class.java)
 }
