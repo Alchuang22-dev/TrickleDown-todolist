@@ -1,13 +1,14 @@
 package com.example.big
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,14 +22,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.sp
@@ -40,14 +39,26 @@ import com.example.big.utils.UserManager
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
 
 class TodayViewComposeActivity : ComponentActivity() {
     private var selectedDate: Date? = null
     private val TAG = "TodayViewComposeActivity"
+
+    // 添加刷新触发器
+    private var refreshTrigger = mutableStateOf(0)
+
+    // 注册结果回调，当从编辑页面返回时触发刷新
+    private val editTaskLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            // 任务被修改或删除，触发刷新
+            refreshTrigger.value++
+            Log.d(TAG, "任务已更新，刷新页面: ${refreshTrigger.value}")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,16 +75,36 @@ class TodayViewComposeActivity : ComponentActivity() {
                 ) {
                     TodayViewScreen(
                         selectedDate = selectedDate ?: Date(),
-                        coroutineScope = lifecycleScope
+                        coroutineScope = lifecycleScope,
+                        refreshTrigger = refreshTrigger.value,
+                        onEditTask = { taskId ->
+                            // 使用结果启动器启动编辑页面
+                            val intent = Intent(this, EditTaskActivity::class.java)
+                            intent.putExtra("task_id", taskId)
+                            editTaskLauncher.launch(intent)
+                        }
                     )
                 }
             }
         }
     }
+
+    // 添加 onResume 方法，每次页面恢复时触发刷新
+    override fun onResume() {
+        super.onResume()
+        // 每次页面恢复时增加刷新触发器值，强制刷新
+        refreshTrigger.value++
+        Log.d(TAG, "页面恢复，触发刷新: ${refreshTrigger.value}")
+    }
 }
 
 @Composable
-fun TodayViewScreen(selectedDate: Date, coroutineScope: kotlinx.coroutines.CoroutineScope) {
+fun TodayViewScreen(
+    selectedDate: Date,
+    coroutineScope: kotlinx.coroutines.CoroutineScope,
+    refreshTrigger: Int,
+    onEditTask: (String) -> Unit
+) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
@@ -85,8 +116,9 @@ fun TodayViewScreen(selectedDate: Date, coroutineScope: kotlinx.coroutines.Corou
     // 无时间任务区域高度
     var noTimeTaskAreaHeight by remember { mutableStateOf(0.dp) }
 
-    // 加载任务数据
-    LaunchedEffect(selectedDate) {
+    // 加载任务数据 - 使用refreshTrigger作为依赖，确保刷新时重新加载
+    LaunchedEffect(selectedDate, refreshTrigger) {
+        isLoading = true
         loadTasksForDate(selectedDate, coroutineScope) { result ->
             when (result) {
                 is TaskLoadResult.Success -> {
@@ -94,7 +126,12 @@ fun TodayViewScreen(selectedDate: Date, coroutineScope: kotlinx.coroutines.Corou
                     isLoading = false
                 }
                 is TaskLoadResult.Error -> {
-                    errorMessage = result.message
+                    // 修改：即使加载失败也清空任务列表，确保显示空界面而不是错误界面
+                    tasks = emptyList()
+                    // 只有在真正出错时才显示错误信息，"无任务"不算错误
+                    if (!result.message.contains("无任务")) {
+                        errorMessage = result.message
+                    }
                     isLoading = false
                 }
             }
@@ -128,7 +165,8 @@ fun TodayViewScreen(selectedDate: Date, coroutineScope: kotlinx.coroutines.Corou
                 return@Box
             }
 
-            // 错误状态
+            // 错误状态 - 只在真正出错时显示错误
+            /*
             if (errorMessage != null) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -149,20 +187,7 @@ fun TodayViewScreen(selectedDate: Date, coroutineScope: kotlinx.coroutines.Corou
                 }
                 return@Box
             }
-
-            // 如果没有任务
-            if (tasks.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "今日没有任务",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
-                return@Box
-            }
+             */
 
             // 将任务划分为无时间任务和有时间任务
             val noTimeTasks = tasks.filter { it.timeRange == "未设定时间" || it.durationMinutes == 0 }
@@ -177,11 +202,19 @@ fun TodayViewScreen(selectedDate: Date, coroutineScope: kotlinx.coroutines.Corou
                             tasks = noTimeTasks,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 40.dp, end = 8.dp)
+                                .padding(start = 40.dp, end = 8.dp),
+                            onEditTask = onEditTask
                         )
                     }.map { it.measure(constraints) }
                 } else {
-                    emptyList()
+                    // 即使没有无时间任务，也显示无时间任务区域
+                    subcompose("emptyNoTimeTasks") {
+                        EmptyNoTimeTasksArea(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 40.dp, end = 8.dp)
+                        )
+                    }.map { it.measure(constraints) }
                 }
 
                 // 计算无时间任务区域的高度
@@ -198,7 +231,8 @@ fun TodayViewScreen(selectedDate: Date, coroutineScope: kotlinx.coroutines.Corou
                         tasks = timeTasks,
                         startHour = 0,
                         endHour = 23,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        onEditTask = onEditTask
                     )
                 }.map { it.measure(constraints) }
 
@@ -221,6 +255,36 @@ fun TodayViewScreen(selectedDate: Date, coroutineScope: kotlinx.coroutines.Corou
                     timeTasksPlaceables.forEach { it.place(0, noTimeTaskHeight + 16) }
                 }
             }
+        }
+    }
+}
+
+// 新增：空无时间任务区域组件
+@Composable
+fun EmptyNoTimeTasksArea(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
+            .padding(8.dp)
+    ) {
+        Text(
+            text = "无时间安排",
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        // 显示空状态提示
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "今日没有无时间任务",
+                color = Color.Gray,
+                fontSize = 14.sp
+            )
         }
     }
 }
@@ -249,13 +313,25 @@ private fun loadTasksForDate(
 
             when (response) {
                 is TaskManager.Result.Success -> {
-                    // 将TaskResponse转换为UI需要的Task对象
-                    val tasks = convertTaskResponsesToTasks(response.data)
+                    // 修改：即使获取到空任务列表也返回成功，而不是错误
+                    val tasks = if (response.data.isEmpty()) {
+                        emptyList()
+                    } else {
+                        convertTaskResponsesToTasks(response.data)
+                    }
                     callback(TaskLoadResult.Success(tasks))
                 }
                 is TaskManager.Result.Error -> {
                     Log.e("TodayView", "获取任务失败: ${response.message}")
-                    callback(TaskLoadResult.Error("获取任务失败: ${response.message}"))
+
+                    // 如果错误信息表明是"无任务"，返回空列表作为成功结果
+                    if (response.message.contains("无任务") ||
+                        response.message.contains("未找到任务") ||
+                        response.message.contains("empty")) {
+                        callback(TaskLoadResult.Success(emptyList()))
+                    } else {
+                        callback(TaskLoadResult.Error("获取任务失败: ${response.message}"))
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -392,122 +468,32 @@ fun TimelineBackground(startHour: Int, endHour: Int) {
         }
     }
 }
+
 @Composable
 fun TaskCard(
     task: Task,
     heightDp: Dp,
     modifier: Modifier = Modifier,
-    onTaskMoved: ((Task, Calendar, Int, Int) -> Unit)? = null
+    onEditTask: (String) -> Unit
 ) {
-    val context = LocalContext.current
     val minHeight = 50.dp
 
     // 当前高度
     val actualHeight = if (heightDp.value < minHeight.value) minHeight else heightDp
     val isMinHeight = actualHeight.value <= 60f
 
-    // 拖拽状态
-    var offsetX by remember { mutableStateOf(0f) }
-    var offsetY by remember { mutableStateOf(0f) }
-    var isDragging by remember { mutableStateOf(false) }
-
-    // 本地密度换算
-    val density = LocalDensity.current
-
-    // 用于记录任务的原始位置信息，拖拽取消时恢复位置
-    var originalX by remember { mutableStateOf(0f) }
-    var originalY by remember { mutableStateOf(0f) }
-
-    // 时间参数
-    val hourHeightDp = 72.dp
-    val startHour = 0
-
-    // 获取当前可见的日期
-    val currentDate = Calendar.getInstance()
-    val visibleDates = listOf(
-        (currentDate.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, -1) },
-        currentDate.clone() as Calendar,
-        (currentDate.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, 1) }
-    )
-
     Card(
         modifier = modifier
             .height(actualHeight)
-            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = {
-                        isDragging = true
-                        originalX = offsetX
-                        originalY = offsetY
-                    },
-                    onDragEnd = {
-                        isDragging = false
-
-                        // 防止误触，如果拖动距离太小，恢复原始位置
-                        if (abs(offsetX - originalX) < 20 && abs(offsetY - originalY) < 20) {
-                            offsetX = originalX
-                            offsetY = originalY
-
-                            // 点击事件处理
-                            val intent = Intent(context, EditTaskActivity::class.java)
-                            intent.putExtra("task_id", task.id)
-                            context.startActivity(intent)
-                            return@detectDragGestures
-                        }
-
-                        // 简化实现：直接根据当前偏移计算新位置
-                        val screenWidth = context.resources.displayMetrics.widthPixels
-                        val leftPadding = with(density) { 40.dp.toPx() }
-                        val availableWidth = screenWidth - leftPadding
-                        val columnWidth = availableWidth / 3
-
-                        // 确定在哪一列（第几天）
-                        val dateIndex = ((offsetX + leftPadding) / columnWidth).toInt().coerceIn(0, 2)
-
-                        // 计算开始时间
-                        val hourHeightPx = with(density) { hourHeightDp.toPx() }
-                        val totalMinutesFromStart = ((offsetY / hourHeightPx) * 60).toInt()
-                        val newStartHour = startHour + (totalMinutesFromStart / 60)
-                        val newStartMinute = (totalMinutesFromStart % 60) / 5 * 5 // 向下取整到5分钟
-
-                        // 保持任务原有持续时间
-                        val taskDurationMinutes = task.durationMinutes
-
-                        // 计算新的结束时间
-                        val totalEndMinutes = totalMinutesFromStart + taskDurationMinutes
-                        val newEndHour = startHour + (totalEndMinutes / 60)
-                        val newEndMinute = (totalEndMinutes % 60) / 5 * 5
-
-                        // 获取目标日期
-                        val targetDate = visibleDates[dateIndex]
-
-                        // 调用回调更新任务
-                        onTaskMoved?.invoke(task, targetDate,
-                            newStartHour * 60 + newStartMinute,
-                            newEndHour * 60 + newEndMinute)
-                    },
-                    onDragCancel = {
-                        // 取消拖拽，恢复原始位置
-                        isDragging = false
-                        offsetX = originalX
-                        offsetY = originalY
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        offsetX += dragAmount.x
-                        offsetY += dragAmount.y
-                    }
-                )
+            .clickable {
+                // 点击进入编辑页面，使用回调
+                onEditTask(task.id)
             },
         colors = CardDefaults.cardColors(
-            containerColor = if (task.isImportant)
-                if (isDragging) Color(0xFFBBE0BB) else Color(0xFFE8F5E9)
-            else
-                if (isDragging) Color(0xFFB3E0FF) else Color(0xFFE3F2FD)
+            containerColor = if (task.isImportant) Color(0xFFE8F5E9) else Color(0xFFE3F2FD)
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isDragging) 8.dp else 2.dp
+            defaultElevation = 2.dp
         )
     ) {
         // Card 内容
@@ -563,7 +549,11 @@ fun TaskCard(
 }
 
 @Composable
-fun NoTimeTasksArea(tasks: List<Task>, modifier: Modifier = Modifier) {
+fun NoTimeTasksArea(
+    tasks: List<Task>,
+    modifier: Modifier = Modifier,
+    onEditTask: (String) -> Unit
+) {
     Column(
         modifier = modifier
             .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
@@ -586,7 +576,8 @@ fun NoTimeTasksArea(tasks: List<Task>, modifier: Modifier = Modifier) {
                 heightDp = 80.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 2.dp)
+                    .padding(vertical = 2.dp),
+                onEditTask = onEditTask
             )
         }
 
@@ -597,14 +588,21 @@ fun NoTimeTasksArea(tasks: List<Task>, modifier: Modifier = Modifier) {
                 heightDp = 80.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 2.dp)
+                    .padding(vertical = 2.dp),
+                onEditTask = onEditTask
             )
         }
     }
 }
 
 @Composable
-fun TasksTimeline(tasks: List<Task>, startHour: Int, endHour: Int, modifier: Modifier = Modifier) {
+fun TasksTimeline(
+    tasks: List<Task>,
+    startHour: Int,
+    endHour: Int,
+    modifier: Modifier = Modifier,
+    onEditTask: (String) -> Unit
+) {
     val hourHeight = 72.dp // 每小时的高度
     val minuteHeight = hourHeight / 60 // 每分钟的高度
     val totalHeight = ((endHour - startHour + 1) * hourHeight.value).dp // 转换为 Dp
@@ -662,14 +660,15 @@ fun TasksTimeline(tasks: List<Task>, startHour: Int, endHour: Int, modifier: Mod
                 occupiedTimeSlots[key]?.add(minute)
             }
 
-            // 使用TaskCard显示任务
+            // 使用TaskCard显示任务，移除拖动功能
             TaskCard(
                 task = task,
                 heightDp = taskHeight,
                 modifier = Modifier
                     .padding(start = 40.dp + (column * 70).dp, top = topOffset)
                     .width(65.dp)
-                    .zIndex(if (task.isImportant) 10f else 5f)
+                    .zIndex(if (task.isImportant) 10f else 5f),
+                onEditTask = onEditTask
             )
         }
     }

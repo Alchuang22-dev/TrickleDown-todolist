@@ -1,10 +1,12 @@
 package com.example.big
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -87,6 +89,32 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 
 class KanbanViewActivityCompose : ComponentActivity() {
+    // 添加刷新触发器
+    private var refreshTrigger = mutableStateOf(0)
+
+    // 添加一个用于标记是否来自拖动操作的标志
+    private var isRefreshFromDrag = false
+
+    // 注册结果回调
+    private val editTaskLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            // 任务被修改或删除，触发刷新
+            refreshTrigger.value++
+            Log.d(DEBUG_TAG, "任务已更新，刷新看板视图: ${refreshTrigger.value}")
+        }
+    }
+
+    // 注册日期视图结果回调
+    private val dateViewLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        // 无论结果如何，返回后都刷新数据，因为可能在日期视图中修改了任务
+        refreshTrigger.value++
+        Log.d(DEBUG_TAG, "从日期视图返回，刷新看板视图: ${refreshTrigger.value}")
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -95,9 +123,43 @@ class KanbanViewActivityCompose : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    KanbanScreen(lifecycleScope)
+                    KanbanScreen(
+                        lifecycleScope,
+                        refreshTrigger = refreshTrigger.value,
+                        onEditTask = { taskId ->
+                            val intent = Intent(this, EditTaskActivity::class.java)
+                            intent.putExtra("task_id", taskId)
+                            editTaskLauncher.launch(intent)
+                        },
+                        onDateClick = { date ->
+                            val intent = Intent(this, TodayViewComposeActivity::class.java)
+                            intent.putExtra("selected_date", date.timeInMillis)
+                            dateViewLauncher.launch(intent)
+                        },
+                        // 添加拖动刷新回调
+                        onDragRefreshNeeded = {
+                            isRefreshFromDrag = true
+                            refreshTrigger.value++
+                            Log.d(DEBUG_TAG, "拖动操作触发刷新: ${refreshTrigger.value}")
+                        }
+                    )
                 }
             }
+        }
+    }
+
+    // 添加 onResume 方法，每次页面恢复时触发刷新，但排除拖动情况下的自动刷新
+    override fun onResume() {
+        super.onResume()
+
+        if (isRefreshFromDrag) {
+            // 如果是拖动导致的刷新，重置标志但不再次刷新
+            isRefreshFromDrag = false
+            Log.d(DEBUG_TAG, "跳过onResume自动刷新，因为刚刚拖动过")
+        } else {
+            // 正常情况下，每次页面恢复时增加刷新触发器值，强制刷新
+            refreshTrigger.value++
+            Log.d(DEBUG_TAG, "页面恢复，触发刷新: ${refreshTrigger.value}")
         }
     }
 }
@@ -111,7 +173,13 @@ fun debugLog(message: String) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun KanbanScreen(coroutineScope: kotlinx.coroutines.CoroutineScope) {
+fun KanbanScreen(
+    coroutineScope: kotlinx.coroutines.CoroutineScope,
+    refreshTrigger: Int = 0,
+    onEditTask: (String) -> Unit,
+    onDateClick: (Calendar) -> Unit,
+    onDragRefreshNeeded: () -> Unit
+) {
     // 定义状态
     val context = LocalContext.current
 
@@ -120,10 +188,7 @@ fun KanbanScreen(coroutineScope: kotlinx.coroutines.CoroutineScope) {
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // 新增：添加页面刷新状态
-    var refreshTrigger by remember { mutableStateOf(0) }
-
-    // 新增：记录滚动位置
+    // 记录滚动位置
     val scrollState = rememberScrollState()
     var savedScrollPosition by remember { mutableStateOf(0) }
     var shouldRestoreScroll by remember { mutableStateOf(false) }
@@ -131,13 +196,14 @@ fun KanbanScreen(coroutineScope: kotlinx.coroutines.CoroutineScope) {
     var currentDate by remember { mutableStateOf(Calendar.getInstance()) }
     val scope = rememberCoroutineScope()
 
-    // 新增：刷新函数，保存当前滚动位置
+    // 刷新函数，保存当前滚动位置
     fun refreshKanbanView() {
         Log.d(DEBUG_TAG, "触发看板视图刷新")
         savedScrollPosition = scrollState.value
         shouldRestoreScroll = true
         isLoading = true
-        refreshTrigger += 1
+        // 使用外部传入的刷新回调
+        onDragRefreshNeeded()
     }
 
     // 恢复滚动位置的效果
@@ -152,6 +218,7 @@ fun KanbanScreen(coroutineScope: kotlinx.coroutines.CoroutineScope) {
 
     // 从API加载任务数据，添加refreshTrigger作为Key
     LaunchedEffect(key1 = true, key2 = refreshTrigger) {
+        isLoading = true
         loadTasksFromApi(coroutineScope) { result ->
             when (result) {
                 is TaskLoadResult.Success -> {
@@ -159,6 +226,8 @@ fun KanbanScreen(coroutineScope: kotlinx.coroutines.CoroutineScope) {
                     isLoading = false
                 }
                 is TaskLoadResult.Error -> {
+                    // 确保即使出错也有一个空的任务列表
+                    tasks = emptyList()
                     errorMessage = result.message
                     isLoading = false
                 }
@@ -204,11 +273,7 @@ fun KanbanScreen(coroutineScope: kotlinx.coroutines.CoroutineScope) {
             // 日期选择栏 - 显示三天
             DateSelectionBar(
                 dates = visibleDates,
-                onDateClick = { date ->
-                    val intent = Intent(context, TodayViewComposeActivity::class.java)
-                    intent.putExtra("selected_date", date.timeInMillis)
-                    context.startActivity(intent)
-                },
+                onDateClick = onDateClick,
                 onSwipeLeft = onNextDays,
                 onSwipeRight = onPreviousDays
             )
@@ -243,12 +308,12 @@ fun KanbanScreen(coroutineScope: kotlinx.coroutines.CoroutineScope) {
                     }
                 }
                 else -> {
-                    // 修改：传递滚动状态和刷新函数
                     MultiDayTimelineView(
                         visibleDates = visibleDates,
                         tasks = tasks,
                         scrollState = scrollState,
-                        onRefreshNeeded = { refreshKanbanView() }
+                        onRefreshNeeded = { refreshKanbanView() },
+                        onEditTask = onEditTask
                     )
                 }
             }
@@ -350,7 +415,13 @@ private fun loadTasksFromApi(
                 }
                 is TaskManager.Result.Error -> {
                     Log.e(DEBUG_TAG, "获取任务失败: ${response.message}")
-                    callback(TaskLoadResult.Error("获取任务失败: ${response.message}"))
+                    if (response.message.contains("无任务") ||
+                        response.message.contains("未找到任务") ||
+                        response.message.contains("empty")) {
+                        callback(TaskLoadResult.Success(emptyList()))
+                    } else {
+                        callback(TaskLoadResult.Error("获取任务失败: ${response.message}"))
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -827,7 +898,8 @@ fun MultiDayTimelineView(
     visibleDates: List<Calendar>,
     tasks: List<Task>,
     scrollState: androidx.compose.foundation.ScrollState, // 传入滚动状态
-    onRefreshNeeded: () -> Unit
+    onRefreshNeeded: () -> Unit,
+    onEditTask: (String) -> Unit
 ) {
     val startHour = 0
     val endHour = 23
@@ -912,7 +984,8 @@ fun MultiDayTimelineView(
             NoTimeTasksSection(
                 tasksByDate = noTimeTasksByDate,
                 dates = visibleDates,
-                onTaskMoved = updateTaskTimeWrapper
+                onTaskMoved = updateTaskTimeWrapper,
+                onEditTask = onEditTask
             )
 
             // 时间线区域 - 使用绝对定位
@@ -1017,7 +1090,8 @@ fun MultiDayTimelineView(
                                 visibleDates = visibleDates,
                                 dateIndex = dateIndex,
                                 startHour = startHour,
-                                hourHeightDp = hourHeightDp
+                                hourHeightDp = hourHeightDp,
+                                onEditTask = onEditTask
                             )
                         }
                     }
@@ -1070,7 +1144,8 @@ fun MultiDayTimelineView(
 fun NoTimeTasksSection(
     tasksByDate: Map<Calendar, List<Task>>,
     dates: List<Calendar>,
-    onTaskMoved: ((Task, Calendar, Int, Int) -> Unit)? = null
+    onTaskMoved: ((Task, Calendar, Int, Int) -> Unit)? = null,
+    onEditTask: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -1138,7 +1213,8 @@ fun NoTimeTasksSection(
                                         // 将无时间任务移动到时间线上的回调
                                         // 默认移动到当天的8:00-9:00
                                         onTaskMoved?.invoke(task, date, 8 * 60, 9 * 60)
-                                    }
+                                    },
+                                    onEditTask = onEditTask
                                 )
                             }
                         }
@@ -1156,17 +1232,16 @@ fun NoTimeTasksSection(
 fun SimpleTaskCard(
     task: Task,
     modifier: Modifier = Modifier,
-    onMoveToTimeline: ((Task, Calendar) -> Unit)? = null
+    onMoveToTimeline: ((Task, Calendar) -> Unit)? = null,
+    onEditTask: (String) -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    val context = LocalContext.current
 
     Card(
         modifier = modifier
             .clickable {
-                val intent = Intent(context, EditTaskActivity::class.java)
-                intent.putExtra("task_id", task.id)
-                context.startActivity(intent)
+                // 使用回调代替直接启动Intent
+                onEditTask(task.id)
             },
         colors = CardDefaults.cardColors(
             containerColor = if (task.isImportant) Color(0xFFE8F5E9) else Color(0xFFE3F2FD)
@@ -1236,9 +1311,9 @@ fun DraggableTaskCard(
     visibleDates: List<Calendar>,
     dateIndex: Int,
     startHour: Int,
-    hourHeightDp: Dp
+    hourHeightDp: Dp,
+    onEditTask: (String) -> Unit
 ) {
-    val context = LocalContext.current
     val minHeight = 50.dp
     val logTag = "DraggableTask"
 
@@ -1371,10 +1446,8 @@ fun DraggableTaskCard(
                             isDragging = false
                             resetCard()
 
-                            // 启动编辑活动
-                            val intent = Intent(context, EditTaskActivity::class.java)
-                            intent.putExtra("task_id", task.id)
-                            context.startActivity(intent)
+                            // 使用回调进入编辑页面
+                            onEditTask(task.id)
                             return@detectDragGestures
                         }
 
@@ -1516,9 +1589,8 @@ fun DraggableTaskCard(
                 )
             }
             .clickable(enabled = !isDragging && !isAnimating) {
-                val intent = Intent(context, EditTaskActivity::class.java)
-                intent.putExtra("task_id", task.id)
-                context.startActivity(intent)
+                // 使用回调而不是直接启动Intent
+                onEditTask(task.id)
             },
         colors = CardDefaults.cardColors(
             containerColor = if (task.isImportant)
