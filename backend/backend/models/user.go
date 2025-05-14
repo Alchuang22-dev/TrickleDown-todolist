@@ -45,6 +45,7 @@ type User struct {
 	Permissions     map[PermissionType]bool   `json:"permissions" bson:"permissions"` // 权限设置
 	Preferences     map[string]interface{}    `json:"preferences" bson:"preferences"` // 其他用户偏好
 	TaskIDs         []primitive.ObjectID      `json:"taskIds" bson:"taskIds"` // 用户绑定的任务ID列表
+	APIKey          string                    `json:"apiKey" bson:"apiKey"`  // API 密钥，用于 AI 服务
 }
 
 // NewUser 创建一个新用户
@@ -60,6 +61,7 @@ func NewUser(username string) *User {
 		Permissions: make(map[PermissionType]bool),
 		Preferences: make(map[string]interface{}),
 		TaskIDs:     make([]primitive.ObjectID, 0),
+		APIKey:      "", // 初始化为空字符串
 	}
 	
 	// 初始化默认权限
@@ -212,4 +214,9 @@ func (u *User) GetUserInfo() map[string]interface{} {
 		"taskIds":      u.TaskIDs,
 	}
 	return userInfo
+}
+
+// UpdateAPIKey 更新用户的 API 密钥
+func (u *User) UpdateAPIKey(apiKey string) {
+    u.APIKey = apiKey
 }

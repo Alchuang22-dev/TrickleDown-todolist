@@ -1,6 +1,7 @@
 [versions]
 agp = "8.8.0"
 coilCompose = "2.4.0"
+composeBomVersion = "2024.12.00"
 desugar_jdk_libs = "2.1.5"
 junit = "4.13.2"
 junitVersion = "1.2.1"
@@ -11,6 +12,8 @@ material = "1.12.0"
 activity = "1.10.1"
 constraintlayout = "2.2.1"
 circleimageview = "3.1.0"
+materialIconsExtended = "1.8.1"
+materialIconsExtendedVersion = "1.6.0"
 mpandroidchart = "v3.1.0"
 kotlin = "2.1.0"
 coreKtx = "1.16.0"
@@ -25,10 +28,12 @@ compose    = "1.8.0"    # runtime-livedata 的稳定版，对应 BOM 2024.04.00 
 composeCompiler = "1.5.8"
 glide         = "4.15.1"
 lifecycleKtx  = "2.8.0"
-playServicesBasement = "18.7.0"    # 与 compose-viewmodel 统一
+playServicesBasement = "18.7.0"
+generativeai = "0.9.0"    # 与 compose-viewmodel 统一
 
 [libraries]
-coil-compose = { group = "io.coil-kt", name = "coil-compose", version = "2.4.0" }
+coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coilCompose" }
+compose-bom-v20241200 = { module = "androidx.compose:compose-bom", version.ref = "composeBomVersion" }
 desugar_jdk_libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
@@ -39,6 +44,9 @@ material = { group = "com.google.android.material", name = "material", version.r
 activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
 constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
 circleimageview = { module = "de.hdodenhof:circleimageview", version.ref = "circleimageview" }
+material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
+material-icons-extended-v160 = { module = "androidx.compose.material:material-icons-extended", version.ref = "materialIconsExtendedVersion" }
+material-icons-extended-v181 = { module = "androidx.compose.material:material-icons-extended", version.ref = "materialIconsExtended" }
 mpandroidchart = { module = "com.github.PhilJay:MPAndroidChart", version.ref = "mpandroidchart" }
 core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 # Compose 相关依赖
@@ -67,6 +75,10 @@ compose-runtime-livedata = { group = "androidx.compose.runtime", name = "runtime
 # Coroutines
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 play-services-basement = { group = "com.google.android.gms", name = "play-services-basement", version.ref = "playServicesBasement" }
+generativeai = { group = "com.google.ai.client.generativeai", name = "generativeai", version.ref = "generativeai" }
+
+#noinspection SimilarGradleDependency
+compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIconsExtendedVersion" }
 [plugins]
 kotlin-android   = { id = "org.jetbrains.kotlin.android",   version.ref = "kotlin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

@@ -48,6 +48,9 @@
             android:name=".TodayViewComposeActivity"
             android:exported="false" />
         <activity
+            android:name=".AIChatActivity"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>

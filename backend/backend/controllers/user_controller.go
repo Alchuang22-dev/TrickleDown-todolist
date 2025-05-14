@@ -708,3 +708,36 @@ func (c *UserController) ServeAvatar(ctx *gin.Context) {
     // 提供文件
     ctx.File(filePath)
 }
+
+// UpdateAPIKey 更新用户的 API 密钥
+func (c *UserController) UpdateAPIKey(ctx *gin.Context) {
+    id := ctx.Param("id")
+    objectID, err := primitive.ObjectIDFromHex(id)
+    if err != nil {
+        ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID格式"})
+        return
+    }
+    
+    user, err := c.userRepo.FindByID(objectID)
+    if err != nil {
+        ctx.JSON(http.StatusNotFound, gin.H{"error": "用户未找到"})
+        return
+    }
+    
+    var input struct {
+        APIKey string `json:"api_key" binding:"required"`
+    }
+    
+    if err := ctx.ShouldBindJSON(&input); err != nil {
+        ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的输入数据"})
+        return
+    }
+    
+    user.UpdateAPIKey(input.APIKey)
+    if err := c.userRepo.Update(user); err != nil {
+        ctx.JSON(http.StatusInternalServerError, gin.H{"error": "更新API密钥失败"})
+        return
+    }
+    
+    ctx.JSON(http.StatusOK, gin.H{"message": "API密钥更新成功"})
+}
