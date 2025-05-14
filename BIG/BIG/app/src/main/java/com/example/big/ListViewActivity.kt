@@ -207,7 +207,7 @@ class ListViewActivity : AppCompatActivity() {
                 val todayDate = dateFormat.format(Date())
 
                 // 调用API获取今日任务
-                val response = TaskManager.getAllTasks()
+                val response = TaskManager.getAllTasksWithPagination()
 
                 when (response) {
                     is TaskManager.Result.Success -> {

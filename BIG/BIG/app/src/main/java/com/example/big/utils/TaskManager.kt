@@ -84,13 +84,13 @@ object TaskManager {
     // 从服务器获取所有任务
     suspend fun getAllTasks(forceRefresh: Boolean = false): Result<List<TaskResponse>> {
         // 如果不强制刷新且缓存有效，返回缓存数据
-        if (!forceRefresh && !needsSync()) {
-            val cachedTasks = getCachedTasks()
-            if (cachedTasks.isNotEmpty()) {
-                Log.d(TAG, "返回缓存的任务列表 (${cachedTasks.size} 个任务)")
-                return Result.Success(cachedTasks)
-            }
-        }
+//        if (!forceRefresh && !needsSync()) {
+//            val cachedTasks = getCachedTasks()
+//            if (cachedTasks.isNotEmpty()) {
+//                Log.d(TAG, "返回缓存的任务列表 (${cachedTasks.size} 个任务)")
+//                return Result.Success(cachedTasks)
+//            }
+//        }
 
         // 从服务器获取数据
         return withContext(Dispatchers.IO) {
