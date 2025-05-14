@@ -3,7 +3,7 @@
     xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/menu_all"
-        android:title="全部事项"
+        android:title="时间排序"
         tools:ignore="HardcodedText" />
     <item
         android:id="@+id/menu_unfinished"
