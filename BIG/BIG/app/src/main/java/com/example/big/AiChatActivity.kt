@@ -161,7 +161,7 @@ class AIChatActivity : ComponentActivity() {
     }
 
     companion object {
-        private const val TAG = "AIChatActivity"
+        const val TAG = "AIChatActivity"
     }
 }
 

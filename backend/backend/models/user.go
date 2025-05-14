@@ -212,6 +212,7 @@ func (u *User) GetUserInfo() map[string]interface{} {
 		"permissions":  u.Permissions,
 		"preferences":  u.Preferences,
 		"taskIds":      u.TaskIDs,
+		"apiKey":		u.APIKey,
 	}
 	return userInfo
 }
