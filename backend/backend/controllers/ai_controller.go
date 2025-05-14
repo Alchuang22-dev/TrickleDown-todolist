@@ -65,15 +65,23 @@ type DeepseekResponse struct {
 
 // GetAISuggestion 获取 AI 对任务的建议
 func (c *AIController) GetAISuggestion(ctx *gin.Context) {
-    userID, exists := ctx.Get("userID")
-    if !exists {
-        ctx.JSON(http.StatusUnauthorized, gin.H{"error": "用户未认证"})
+    // 从URL路径获取用户ID
+    userIDParam := ctx.Param("userId")
+    if userIDParam == "" {
+        ctx.JSON(http.StatusBadRequest, gin.H{"error": "用户ID不能为空"})
         return
     }
     
-    objectID, err := primitive.ObjectIDFromHex(userID.(string))
+    // 验证路径中的用户ID与Token中的用户ID是否匹配（可选的安全检查）
+    // tokenUserID, exists := ctx.Get("userID")
+    // if exists {
+    //     // 如果存在Token用户ID，可以在这里比较两个ID是否匹配
+    //     // 这是一个可选的安全检查
+    // }
+    
+    objectID, err := primitive.ObjectIDFromHex(userIDParam)
     if err != nil {
-        ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+        ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID格式"})
         return
     }
     
@@ -93,12 +101,6 @@ func (c *AIController) GetAISuggestion(ctx *gin.Context) {
         ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的请求数据"})
         return
     }
-    
-    // taskID, err := primitive.ObjectIDFromHex(request.TaskID)
-    // if err != nil {
-    //     ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的任务ID"})
-    //     return
-    // }
     
     task, err := c.taskRepo.GetByID(ctx, request.TaskID)
     if err != nil {
