@@ -36,8 +36,10 @@ interface UserApiService {
         @Body updateRequest: UpdateApiKeyRequest
     ): Response<Map<String, String>>
 
-    @POST("api/ai/suggestion")
+    // 修改为包含用户ID的路径
+    @POST("api/ai/suggestion/{userId}")
     suspend fun getAISuggestion(
+        @Path("userId") userId: String,
         @Body request: AISuggestionRequest
     ): Response<AISuggestionResponse>
 }
