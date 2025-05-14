@@ -5,6 +5,7 @@ import com.example.big.models.AISuggestionRequest
 import com.example.big.models.AISuggestionResponse
 import com.example.big.models.UpdateApiKeyRequest
 import com.example.big.models.UpdateUserRequest
+import com.example.big.models.UserPermissionRequest
 import com.example.big.models.UserResponse
 import okhttp3.MultipartBody
 import retrofit2.Response
@@ -36,8 +37,20 @@ interface UserApiService {
         @Body updateRequest: UpdateApiKeyRequest
     ): Response<Map<String, String>>
 
-    @POST("api/ai/suggestion")
+    // 修改为包含用户ID的路径
+    @POST("api/ai/suggestion/{userId}")
     suspend fun getAISuggestion(
+        @Path("userId") userId: String,
         @Body request: AISuggestionRequest
     ): Response<AISuggestionResponse>
+
+    // 添加新的权限相关方法
+    @GET("api/users/{id}/permissions")
+    suspend fun getUserPermissions(@Path("id") userId: String): Response<Map<String, Boolean>>
+
+    @PUT("api/users/{id}/permissions")
+    suspend fun updateUserPermission(
+        @Path("id") userId: String,
+        @Body request: UserPermissionRequest
+    ): Response<Map<String, String>>
 }

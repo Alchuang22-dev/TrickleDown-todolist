@@ -106,8 +106,8 @@ func SetupAIRoutes(router *gin.Engine, db *mongo.Database) {
     // AI 相关路由
     ai := authorized.Group("/ai")
     {
-        // 获取 AI 建议
-        ai.POST("/suggestion", aiController.GetAISuggestion)
+        // 获取 AI 建议 - 修改为包含用户ID的路径
+        ai.POST("/suggestion/:userId", aiController.GetAISuggestion)
     }
 }
 
