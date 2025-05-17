@@ -1,10 +1,11 @@
 package middlewares
 
 import (
+    "encoding/binary"
+    "strconv"
     "strings"
     "time"
     
-    "github.com/Alchuang22-dev/backend/models"
     "github.com/Alchuang22-dev/backend/repositories"
     "github.com/Alchuang22-dev/backend/utils"
     
@@ -41,7 +42,7 @@ func TokenRefreshMiddleware(userRepo *repositories.UserRepository) gin.HandlerFu
             
             // 获取用户ID
             userIDStr := claims.Subject
-            userIDInt, err := primitive.ParseInt(userIDStr, 10, 64)
+            userIDInt, err := strconv.ParseInt(userIDStr, 10, 64)
             if err != nil {
                 return
             }
@@ -57,8 +58,7 @@ func TokenRefreshMiddleware(userRepo *repositories.UserRepository) gin.HandlerFu
                 return
             }
             
-            // 检查token是否快过期 (例如，如果剩余有效期不足总有效期的一半)
-            // 这里的计算可以根据你的需求调整
+            // 检查token是否快过期 
             currentTime := time.Now()
             if user.TokenExpireDate.Sub(currentTime) < 12*time.Hour {
                 // 生成新token
@@ -66,11 +66,11 @@ func TokenRefreshMiddleware(userRepo *repositories.UserRepository) gin.HandlerFu
                 newRefreshToken, _ := utils.GenerateRefreshToken(uint(userIDInt))
                 
                 accessTokenDuration := 24 * time.Hour
-                user.RefreshToken(newAccessToken, currentTime.Add(accessTokenDuration), newRefreshToken)
+                user.RefreshUserToken(newAccessToken, currentTime.Add(accessTokenDuration), newRefreshToken)
                 
                 userRepo.Update(user)
                 
-                // 在响应头中设置新token (可选，客户端需要检查并处理)
+                // 在响应头中设置新token
                 c.Header("X-New-Access-Token", newAccessToken)
                 c.Header("X-New-Refresh-Token", newRefreshToken)
                 c.Header("X-Token-Expires-In", "86400") // 24小时(秒)
